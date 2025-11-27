@@ -1,17 +1,19 @@
 # Base image with Node.js 20 Alpine
 FROM node:20-alpine AS base
 
+# Install pnpm via corepack
+RUN corepack enable && corepack prepare pnpm@10.0.0 --activate
+
 # Install dependencies only when needed
 FROM base AS deps
 RUN apk add --no-cache libc6-compat
 
 WORKDIR /app
 
-# Install pnpm
-RUN npm install -g pnpm@9.15.1
-
-# Copy dependency files
-COPY package.json pnpm-lock.yaml .npmrc ./
+# Copy monorepo dependency files
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY packages/db/package.json ./packages/db/
+COPY apps/warehouse-management/package.json apps/warehouse-management/.npmrc ./apps/warehouse-management/
 
 # Install dependencies with frozen lockfile
 RUN pnpm install --frozen-lockfile
@@ -21,14 +23,17 @@ FROM base AS builder
 
 WORKDIR /app
 
-# Install pnpm
-RUN npm install -g pnpm@9.15.1
-
-# Copy node_modules from deps stage
+# Copy dependencies from deps stage
 COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/packages/db/node_modules ./packages/db/node_modules
+COPY --from=deps /app/apps/warehouse-management/node_modules ./apps/warehouse-management/node_modules
 
-# Copy all source files
-COPY . .
+# Copy source code
+COPY packages/db ./packages/db
+COPY apps/warehouse-management ./apps/warehouse-management
+
+# Set working directory to the app
+WORKDIR /app/apps/warehouse-management
 
 # Declare build arguments for NEXT_PUBLIC_* variables
 # These are baked into the client-side JavaScript bundle at build time
@@ -61,14 +66,13 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Copy standalone output with correct permissions (saves ~390s from chown -R)
-# Standalone mode includes only necessary dependencies (~50-100MB vs 731MB)
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+# Copy standalone output with correct permissions
+COPY --from=builder --chown=nextjs:nodejs /app/apps/warehouse-management/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/apps/warehouse-management/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/apps/warehouse-management/public ./public
 
-# Copy drizzle migrations (needed for db operations)
-COPY --from=builder --chown=nextjs:nodejs /app/drizzle ./drizzle
+# Copy drizzle migrations from packages/db (needed for db operations)
+COPY --from=builder --chown=nextjs:nodejs /app/packages/db/drizzle ./drizzle
 
 # Create logs directory with correct permissions
 RUN mkdir -p /app/logs && chown nextjs:nodejs /app/logs

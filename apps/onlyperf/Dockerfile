@@ -8,8 +8,10 @@ RUN corepack enable && corepack prepare pnpm@10.0.0 --activate
 FROM base AS deps
 WORKDIR /app
 
-# Copy dependency files
-COPY package.json pnpm-lock.yaml ./
+# Copy monorepo dependency files
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY packages/db/package.json ./packages/db/
+COPY apps/onlyperf/package.json ./apps/onlyperf/
 
 # Install dependencies with frozen lockfile
 RUN pnpm install --frozen-lockfile
@@ -20,9 +22,15 @@ WORKDIR /app
 
 # Copy dependencies from deps stage
 COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/packages/db/node_modules ./packages/db/node_modules
+COPY --from=deps /app/apps/onlyperf/node_modules ./apps/onlyperf/node_modules
 
 # Copy source code
-COPY . .
+COPY packages/db ./packages/db
+COPY apps/onlyperf ./apps/onlyperf
+
+# Set working directory to the app
+WORKDIR /app/apps/onlyperf
 
 # Build arguments for client-side environment variables
 # These are baked into the client bundle at build time
@@ -69,9 +77,9 @@ RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
 # Copy standalone output
-COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/apps/onlyperf/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/apps/onlyperf/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/apps/onlyperf/public ./public
 
 # Switch to non-root user
 USER nextjs
