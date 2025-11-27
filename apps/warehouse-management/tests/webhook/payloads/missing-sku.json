@@ -1,0 +1,36 @@
+{
+  "event": "order.paid",
+  "provider": "sepay",
+  "shopifyOrderId": "gid://shopify/Order/9999999998",
+  "shopifyOrderNumber": "#TEST-1002",
+  "paymentCode": "TEST124",
+  "amount": 300000,
+  "currency": "VND",
+  "paidAt": "2025-01-04T11:00:00.000Z",
+  "referenceCode": "FT12345679",
+  "gateway": "VIETCOMBANK",
+  "lineItems": [
+    {
+      "sku": "NONEXISTENT123",
+      "variantId": "gid://shopify/ProductVariant/2222222222",
+      "quantity": 1,
+      "price": 300000,
+      "title": "Product That Doesn't Exist in Warehouse",
+      "variantTitle": "Default"
+    }
+  ],
+  "customer": {
+    "email": "test-error@example.com",
+    "name": "Error Test Customer",
+    "phone": "+84987654321"
+  },
+  "shippingAddress": {
+    "name": "Error Test Customer",
+    "address1": "456 Error Lane",
+    "city": "Ho Chi Minh City",
+    "province": "Ho Chi Minh",
+    "zip": "700000",
+    "country": "Vietnam",
+    "phone": "+84987654321"
+  }
+}

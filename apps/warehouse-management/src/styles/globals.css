@@ -1,0 +1,576 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+
+  /* === Custom Color Scales === */
+  /* Based on palette: #222831 (charcoal), #393E46 (gray), #00ADB5 (cyan), #EEEEEE (pearl) */
+
+  /* Charcoal - Dark Theme Base (#222831, #393E46) */
+  --color-charcoal-50: oklch(0.98 0.002 240);
+  --color-charcoal-100: oklch(0.95 0.004 240);
+  --color-charcoal-200: oklch(0.88 0.008 240);
+  --color-charcoal-300: oklch(0.75 0.012 240);
+  --color-charcoal-400: oklch(0.55 0.015 240);
+  --color-charcoal-500: oklch(0.35 0.018 240);  /* ~#393E46 */
+  --color-charcoal-600: oklch(0.25 0.020 240);
+  --color-charcoal-700: oklch(0.20 0.022 240);
+  --color-charcoal-800: oklch(0.16 0.024 240);  /* ~#222831 */
+  --color-charcoal-900: oklch(0.12 0.025 240);
+  --color-charcoal-950: oklch(0.08 0.026 240);
+
+  /* Pearl - Light Theme Base (#EEEEEE) */
+  --color-pearl-50: oklch(0.99 0.001 0);      /* ~#EEEEEE */
+  --color-pearl-100: oklch(0.96 0.001 0);
+  --color-pearl-200: oklch(0.93 0.002 0);
+  --color-pearl-300: oklch(0.87 0.003 0);
+  --color-pearl-400: oklch(0.78 0.004 0);
+  --color-pearl-500: oklch(0.65 0.005 0);
+  --color-pearl-600: oklch(0.52 0.006 0);
+  --color-pearl-700: oklch(0.42 0.007 0);
+  --color-pearl-800: oklch(0.32 0.008 0);
+  --color-pearl-900: oklch(0.22 0.009 0);
+  --color-pearl-950: oklch(0.15 0.010 0);
+
+  /* Cyan - Brand Accent & Shipped Status (#00ADB5) */
+  --color-cyan-50: oklch(0.98 0.020 195);
+  --color-cyan-100: oklch(0.95 0.040 195);
+  --color-cyan-200: oklch(0.90 0.065 195);
+  --color-cyan-300: oklch(0.82 0.095 195);
+  --color-cyan-400: oklch(0.72 0.125 195);
+  --color-cyan-500: oklch(0.64 0.145 195);  /* ~#00ADB5 */
+  --color-cyan-600: oklch(0.55 0.130 195);
+  --color-cyan-700: oklch(0.45 0.110 195);
+  --color-cyan-800: oklch(0.35 0.090 195);
+  --color-cyan-900: oklch(0.25 0.070 195);
+  --color-cyan-950: oklch(0.18 0.050 195);
+
+  /* Amber - Pending Status */
+  --color-amber-50: oklch(0.99 0.020 90);
+  --color-amber-100: oklch(0.97 0.040 90);
+  --color-amber-200: oklch(0.93 0.070 90);
+  --color-amber-300: oklch(0.87 0.100 90);
+  --color-amber-400: oklch(0.78 0.130 90);
+  --color-amber-500: oklch(0.70 0.150 90);
+  --color-amber-600: oklch(0.60 0.140 90);
+  --color-amber-700: oklch(0.48 0.120 90);
+  --color-amber-800: oklch(0.38 0.100 90);
+  --color-amber-900: oklch(0.28 0.080 90);
+  --color-amber-950: oklch(0.20 0.060 90);
+
+  /* Emerald - Received Status */
+  --color-emerald-50: oklch(0.98 0.020 160);
+  --color-emerald-100: oklch(0.95 0.045 160);
+  --color-emerald-200: oklch(0.90 0.075 160);
+  --color-emerald-300: oklch(0.82 0.110 160);
+  --color-emerald-400: oklch(0.72 0.145 160);
+  --color-emerald-500: oklch(0.64 0.165 160);
+  --color-emerald-600: oklch(0.55 0.150 160);
+  --color-emerald-700: oklch(0.45 0.130 160);
+  --color-emerald-800: oklch(0.36 0.110 160);
+  --color-emerald-900: oklch(0.28 0.090 160);
+  --color-emerald-950: oklch(0.20 0.070 160);
+
+  /* Blue - Sold Status */
+  --color-blue-50: oklch(0.97 0.014 254);
+  --color-blue-100: oklch(0.93 0.032 255);
+  --color-blue-200: oklch(0.88 0.059 254);
+  --color-blue-300: oklch(0.81 0.105 251);
+  --color-blue-400: oklch(0.71 0.165 254);
+  --color-blue-500: oklch(0.62 0.214 259);
+  --color-blue-600: oklch(0.55 0.245 262);
+  --color-blue-700: oklch(0.49 0.243 264);
+  --color-blue-800: oklch(0.42 0.199 265);
+  --color-blue-900: oklch(0.38 0.146 265);
+  --color-blue-950: oklch(0.30 0.120 265);
+
+  /* === Spacing Design Tokens === */
+  --spacing-card: 1.5rem;
+  --spacing-section: 2rem;
+  --spacing-page: 2.5rem;
+
+  /* === Shadow Design Tokens === */
+  --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --shadow-card-hover: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-card-active: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+
+  /* === Easing Functions === */
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  --ease-snappy: cubic-bezier(0.2, 0, 0, 1);
+}
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+:root {
+  --radius: 0.75rem;
+
+  /* Light Theme - Using Custom Color Palette */
+  --background: var(--color-pearl-50);
+  --foreground: var(--color-charcoal-800);
+  --card: var(--color-pearl-50);
+  --card-foreground: var(--color-charcoal-900);
+  --popover: var(--color-pearl-50);
+  --popover-foreground: var(--color-charcoal-900);
+  --primary: var(--color-cyan-500);
+  --primary-foreground: var(--color-pearl-50);
+  --secondary: var(--color-cyan-300);
+  --secondary-foreground: var(--color-charcoal-900);
+  --muted: var(--color-pearl-100);
+  --muted-foreground: var(--color-charcoal-500);
+  --accent: var(--color-cyan-400);
+  --accent-foreground: var(--color-charcoal-900);
+  --destructive: oklch(0.65 0.25 25); /* Keep red for universal recognition */
+  --border: var(--color-pearl-200);
+  --input: var(--color-pearl-100);
+  --ring: var(--color-cyan-500);
+
+  /* Chart colors - maintain distinct palette */
+  --chart-1: oklch(0.7 0.25 30);
+  --chart-2: var(--color-emerald-500);
+  --chart-3: var(--color-cyan-500);
+  --chart-4: oklch(0.75 0.2 330);
+  --chart-5: var(--color-amber-500);
+
+  /* Sidebar colors */
+  --sidebar: var(--color-pearl-50);
+  --sidebar-foreground: var(--color-charcoal-900);
+  --sidebar-primary: var(--color-cyan-500);
+  --sidebar-primary-foreground: var(--color-pearl-50);
+  --sidebar-accent: var(--color-pearl-200);
+  --sidebar-accent-foreground: var(--color-charcoal-800);
+  --sidebar-border: var(--color-pearl-300);
+  --sidebar-ring: var(--color-cyan-500);
+
+  /* Status colors - using custom palette */
+  --success: var(--color-emerald-500);
+  --success-foreground: var(--color-pearl-50);
+  --warning: var(--color-amber-400);
+  --warning-foreground: var(--color-charcoal-900);
+  --info: var(--color-blue-500);
+  --info-foreground: var(--color-pearl-50);
+}
+
+.dark {
+  /* Dark Theme - Using Custom Color Palette */
+  --background: var(--color-charcoal-900);
+  --foreground: var(--color-pearl-100);
+  --card: var(--color-charcoal-800);
+  --card-foreground: var(--color-pearl-100);
+  --popover: var(--color-charcoal-800);
+  --popover-foreground: var(--color-pearl-100);
+  --primary: var(--color-cyan-400);
+  --primary-foreground: var(--color-charcoal-950);
+  --secondary: var(--color-cyan-600);
+  --secondary-foreground: var(--color-pearl-100);
+  --muted: var(--color-charcoal-700);
+  --muted-foreground: var(--color-pearl-400);
+  --accent: var(--color-cyan-500);
+  --accent-foreground: var(--color-pearl-100);
+  --destructive: oklch(0.7 0.25 25); /* Keep red for universal recognition */
+  --border: var(--color-charcoal-600);
+  --input: var(--color-charcoal-700);
+  --ring: var(--color-cyan-400);
+
+  /* Chart colors - brighter for dark mode visibility */
+  --chart-1: oklch(0.7 0.25 30);
+  --chart-2: var(--color-emerald-400);
+  --chart-3: var(--color-cyan-400);
+  --chart-4: oklch(0.75 0.2 330);
+  --chart-5: var(--color-amber-400);
+
+  /* Sidebar colors */
+  --sidebar: var(--color-charcoal-800);
+  --sidebar-foreground: var(--color-pearl-100);
+  --sidebar-primary: var(--color-cyan-400);
+  --sidebar-primary-foreground: var(--color-charcoal-950);
+  --sidebar-accent: var(--color-charcoal-700);
+  --sidebar-accent-foreground: var(--color-pearl-100);
+  --sidebar-border: var(--color-charcoal-600);
+  --sidebar-ring: var(--color-cyan-400);
+
+  /* Status colors - brighter shades for dark mode */
+  --success: var(--color-emerald-400);
+  --success-foreground: var(--color-charcoal-950);
+  --warning: var(--color-amber-300);
+  --warning-foreground: var(--color-charcoal-950);
+  --info: var(--color-blue-400);
+  --info-foreground: var(--color-charcoal-950);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Custom utility classes for enhanced styling */
+@layer utilities {
+  /* Gradient utilities */
+  .gradient-primary {
+    @apply bg-gradient-to-r from-primary to-secondary;
+  }
+
+  .gradient-cyan {
+    background: linear-gradient(135deg, var(--color-cyan-500) 0%, var(--color-cyan-600) 100%);
+  }
+
+  .gradient-success {
+    background: linear-gradient(135deg, var(--success) 0%, oklch(0.8 0.15 145) 100%);
+  }
+
+  .gradient-warning {
+    background: linear-gradient(135deg, var(--warning) 0%, oklch(0.85 0.15 85) 100%);
+  }
+
+  .gradient-info {
+    background: linear-gradient(135deg, var(--info) 0%, oklch(0.75 0.15 210) 100%);
+  }
+
+  .gradient-destructive {
+    background: linear-gradient(135deg, var(--destructive) 0%, oklch(0.7 0.2 25) 100%);
+  }
+
+  /* Glass effect */
+  .glass-effect {
+    @apply backdrop-blur-md bg-background/80 border-border;
+  }
+
+  /* Card shadows with custom tokens */
+  .card-shadow {
+    box-shadow: var(--shadow-card);
+    @apply transition-shadow duration-200;
+  }
+
+  .card-shadow:hover {
+    box-shadow: var(--shadow-card-hover);
+  }
+
+  .card-shadow-active {
+    box-shadow: var(--shadow-card-active);
+  }
+
+  /* Micro-interactions - Button scales */
+  /* Note: btn-scale moved to @utility directive below for Tailwind v4 compatibility */
+
+  /* Button primary style */
+  .btn-primary {
+    @apply btn-scale bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-600 hover:to-cyan-700 text-white font-medium shadow-md hover:shadow-lg active:shadow-sm;
+  }
+
+  /* Button secondary style */
+  .btn-secondary {
+    @apply btn-scale bg-background border-2 border-charcoal-200 hover:border-charcoal-300 text-foreground font-medium transition-all duration-200;
+  }
+
+  /* Button destructive style */
+  .btn-destructive {
+    @apply btn-scale bg-red-500 hover:bg-red-600 text-white font-medium shadow-md hover:shadow-lg active:shadow-sm;
+  }
+
+  /* Smooth transitions */
+  .smooth-transition {
+    @apply transition-all duration-200;
+    transition-timing-function: var(--ease-smooth);
+  }
+
+  /* Bounce transition (for playful interactions) */
+  .bounce-transition {
+    @apply transition-all duration-300;
+    transition-timing-function: var(--ease-bounce);
+  }
+
+  /* Snappy transition (for immediate feedback) */
+  .snappy-transition {
+    @apply transition-all duration-150;
+    transition-timing-function: var(--ease-snappy);
+  }
+
+  /* Button shine effect */
+  .button-shine {
+    @apply relative overflow-hidden;
+  }
+
+  .button-shine::after {
+    content: '';
+    @apply absolute inset-0 -translate-x-full;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+    transition: transform 0.6s;
+  }
+
+  .button-shine:hover::after {
+    @apply translate-x-full;
+  }
+
+  /* Card lift effect */
+  .card-lift {
+    @apply transition-all duration-200;
+    transition-timing-function: var(--ease-smooth);
+  }
+
+  .card-lift:hover {
+    @apply -translate-y-0.5;
+    box-shadow: var(--shadow-card-hover);
+  }
+
+  /* Fade in animation */
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-fade-in {
+    animation: fade-in 0.3s var(--ease-smooth);
+  }
+
+  /* Shimmer loading animation */
+  @keyframes shimmer {
+    0% {
+      background-position: -200% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
+  }
+
+  .animate-shimmer {
+    animation: shimmer 2s linear infinite;
+  }
+
+  /* Pulse with scale animation */
+  @keyframes pulse-scale {
+    0%, 100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.8;
+      transform: scale(0.95);
+    }
+  }
+
+  .animate-pulse-scale {
+    animation: pulse-scale 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  /* Slide in from right */
+  @keyframes slide-in-right {
+    from {
+      opacity: 0;
+      transform: translateX(16px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  .animate-slide-in-right {
+    animation: slide-in-right 0.3s var(--ease-smooth);
+  }
+
+  /* Status badge styles */
+  .status-badge-base {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border;
+  }
+
+  .status-pending {
+    @apply bg-gradient-to-r from-amber-500/10 to-amber-600/10 text-amber-700 border-amber-500/20;
+  }
+
+  .status-pending.dark {
+    @apply text-amber-300 border-amber-500/30;
+  }
+
+  .status-received {
+    @apply bg-gradient-to-r from-emerald-500/10 to-emerald-600/10 text-emerald-700 border-emerald-500/20;
+  }
+
+  .status-received.dark {
+    @apply text-emerald-300 border-emerald-500/30;
+  }
+
+  .status-sold {
+    @apply bg-gradient-to-r from-blue-500/10 to-blue-600/10 text-blue-700 border-blue-500/20;
+  }
+
+  .status-sold.dark {
+    @apply text-blue-300 border-blue-500/30;
+  }
+
+  .status-shipped {
+    @apply bg-gradient-to-r from-cyan-500/10 to-cyan-600/10 text-cyan-700 border-cyan-500/20;
+  }
+
+  .status-shipped.dark {
+    @apply text-cyan-300 border-cyan-500/30;
+  }
+
+  .status-failed {
+    @apply bg-red-500/10 text-red-700 border-red-500/20;
+  }
+
+  .status-failed.dark {
+    @apply text-red-300 border-red-500/30;
+  }
+
+  .status-cancelled {
+    @apply bg-charcoal-500/10 text-charcoal-700 border-charcoal-500/20;
+  }
+
+  .status-cancelled.dark {
+    @apply text-charcoal-300 border-charcoal-500/30;
+  }
+
+  /* Table styling */
+  table thead tr {
+    @apply bg-muted/50;
+  }
+
+  table thead th {
+    @apply font-semibold text-foreground/80 border-b border-border h-11 px-4 py-2;
+  }
+
+  table tbody tr {
+    @apply hover:bg-primary/5 transition-colors duration-150 border-b border-border/50;
+  }
+
+  table tbody td {
+    @apply px-4 py-3 text-sm;
+  }
+
+  /* Table row hover effect */
+  table tbody tr:hover {
+    @apply bg-primary/5;
+  }
+
+  /* Table alternating rows for better readability */
+  table tbody tr:nth-child(odd) {
+    @apply bg-background;
+  }
+
+  table tbody tr:nth-child(even) {
+    @apply bg-muted/20;
+  }
+
+  /* Page container utility */
+  .page-container {
+    @apply w-full space-y-6 p-6;
+  }
+
+  /* Page header utility */
+  .page-header {
+    @apply flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4;
+  }
+
+  .page-title {
+    @apply text-2xl sm:text-3xl font-bold text-foreground;
+  }
+
+  .page-subtitle {
+    @apply text-sm text-muted-foreground mt-1;
+  }
+
+  /* Content section spacing */
+  .section-spacing {
+    @apply space-y-4;
+  }
+
+  /* Grid utilities for common layouts */
+  .metrics-grid {
+    @apply grid gap-4 md:grid-cols-2 lg:grid-cols-4;
+  }
+
+  .metrics-grid-3 {
+    @apply grid gap-4 md:grid-cols-2 lg:grid-cols-3;
+  }
+
+  .metrics-grid-2 {
+    @apply grid gap-4 md:grid-cols-2;
+  }
+
+  /* Input field base styling */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="date"],
+  textarea,
+  select {
+    @apply h-10 border-2 border-charcoal-200 rounded-lg hover:border-primary/30 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors duration-200;
+  }
+
+  /* Ensure dark mode input styling */
+  .dark input[type="text"],
+  .dark input[type="email"],
+  .dark input[type="password"],
+  .dark input[type="number"],
+  .dark input[type="date"],
+  .dark textarea,
+  .dark select {
+    @apply border-charcoal-500/30 hover:border-cyan-500/30 focus:border-cyan-500;
+  }
+}
+
+/* Custom utilities using Tailwind v4 @utility directive */
+@utility btn-scale {
+  transition: transform 200ms;
+  transition-timing-function: var(--ease-smooth);
+
+  &:hover {
+    transform: scale(1.02);
+  }
+
+  &:active {
+    transform: scale(0.98);
+  }
+}

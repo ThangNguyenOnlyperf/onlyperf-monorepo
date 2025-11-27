@@ -1,0 +1,37 @@
+{
+  "event": "order.paid",
+  "provider": "sepay",
+  "shopifyOrderId": "gid://shopify/Order/9999999999",
+  "shopifyOrderNumber": "#TEST-1002",
+  "paymentCode": "TEST123",
+  "amount": 500000,
+  "currency": "VND",
+  "paidAt": "2025-01-04T10:30:00.000Z",
+  "referenceCode": "FT12345678",
+  "gateway": "VIETCOMBANK",
+  "lineItems": [
+    {
+      "sku": "prd_1762309470646",
+      "variantId": "gid://shopify/ProductVariant/1111111111",
+      "quantity": 2,
+      "price": 250000,
+      "title": "Shopify S1",
+      "variantTitle": "Size M / Black"
+    }
+  ],
+  "customer": {
+    "email": "test@example.com",
+    "name": "Test Customer",
+    "phone": "+84912345678"
+  },
+  "shippingAddress": {
+    "name": "Test Customer",
+    "address1": "123 Test Street",
+    "address2": "Apartment 4B",
+    "city": "Ho Chi Minh City",
+    "province": "Ho Chi Minh",
+    "zip": "700000",
+    "country": "Vietnam",
+    "phone": "+84912345678"
+  }
+}
