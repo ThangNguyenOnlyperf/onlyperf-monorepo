@@ -1,0 +1,65 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Client-side variables (baked into bundle)
+        NEXT_PUBLIC_STORE_DOMAIN: ${NEXT_PUBLIC_STORE_DOMAIN}
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://onlyperf.com}
+
+        # Server-side variables (needed for static generation at build time)
+        SHOPIFY_STOREFRONT_API_ACCESS_TOKEN: ${SHOPIFY_STOREFRONT_API_ACCESS_TOKEN}
+        SHOPIFY_STORE_DOMAIN: ${SHOPIFY_STORE_DOMAIN}
+        SHOPIFY_ADMIN_API_ACCESS_TOKEN: ${SHOPIFY_ADMIN_API_ACCESS_TOKEN}
+        SHOPIFY_API_VERSION: ${SHOPIFY_API_VERSION:-2025-04}
+        DATABASE_URL: ${DATABASE_URL}
+        SHOPIFY_PRIVATE_STOREFRONT_API_TOKEN: ${SHOPIFY_PRIVATE_STOREFRONT_API_TOKEN}
+    ports:
+      - "3000:3000"
+    environment:
+      # Node environment
+      NODE_ENV: production
+
+      # Database (external PostgreSQL required)
+      DATABASE_URL: ${DATABASE_URL}
+
+      # Sepay Payment Integration
+      SEPAY_API_KEY: ${SEPAY_API_KEY}
+      SEPAY_BANK_ACCOUNT: ${SEPAY_BANK_ACCOUNT}
+      SEPAY_BANK_NAME: ${SEPAY_BANK_NAME}
+      SEPAY_BANK_BIN: ${SEPAY_BANK_BIN}
+
+      # Warehouse Integration (optional)
+      WAREHOUSE_WEBHOOK_URL: ${WAREHOUSE_WEBHOOK_URL}
+      WAREHOUSE_WEBHOOK_SECRET: ${WAREHOUSE_WEBHOOK_SECRET}
+
+      # Shopify Admin API
+      SHOPIFY_ADMIN_API_ACCESS_TOKEN: ${SHOPIFY_ADMIN_API_ACCESS_TOKEN}
+      SHOPIFY_STORE_DOMAIN: ${SHOPIFY_STORE_DOMAIN}
+      SHOPIFY_API_VERSION: ${SHOPIFY_API_VERSION:-2025-04}
+      SHOPIFY_PRIVATE_STOREFRONT_API_TOKEN: ${SHOPIFY_PRIVATE_STOREFRONT_API_TOKEN}
+
+      # Shopify Storefront API
+      SHOPIFY_STOREFRONT_API_ACCESS_TOKEN: ${SHOPIFY_STOREFRONT_API_ACCESS_TOKEN}
+
+      # Shopify Customer Account API (OAuth 2.0)
+      SHOPIFY_CUSTOMER_ACCOUNT_CLIENT_ID: ${SHOPIFY_CUSTOMER_ACCOUNT_CLIENT_ID}
+      SHOPIFY_CUSTOMER_ACCOUNT_CLIENT_SECRET: ${SHOPIFY_CUSTOMER_ACCOUNT_CLIENT_SECRET}
+      SHOPIFY_CUSTOMER_ACCOUNT_REDIRECT_URI: ${SHOPIFY_CUSTOMER_ACCOUNT_REDIRECT_URI}
+
+      # Google OAuth
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET}
+      GOOGLE_OAUTH_REDIRECT_URI: ${GOOGLE_OAUTH_REDIRECT_URI}
+
+      # Client-side environment variables (already baked into build)
+      # NEXT_PUBLIC_STORE_DOMAIN: set via build args
+      # NEXT_PUBLIC_SITE_URL: set via build args
+    restart: unless-stopped
+    networks:
+      - onlyperf-network
+
+networks:
+  onlyperf-network:
+    driver: bridge
