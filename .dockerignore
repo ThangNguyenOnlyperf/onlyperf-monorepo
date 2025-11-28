@@ -1,0 +1,101 @@
+# ===========================================
+# Dependencies - CRITICAL for pnpm monorepos
+# ===========================================
+# pnpm uses symlinks, so we need to be very explicit
+node_modules
+**/node_modules
+.pnpm-store
+**/.pnpm-store
+
+# ===========================================
+# Build outputs
+# ===========================================
+.next
+**/.next
+out
+**/out
+dist
+**/dist
+build
+**/build
+
+# ===========================================
+# Environment files
+# ===========================================
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+
+# ===========================================
+# Development
+# ===========================================
+*.local
+**/*.local
+
+# ===========================================
+# IDE
+# ===========================================
+.vscode
+.idea
+**/.vscode
+**/.idea
+*.swp
+*.swo
+*~
+.DS_Store
+**/.DS_Store
+
+# ===========================================
+# Git
+# ===========================================
+.git
+.gitignore
+.gitattributes
+
+# ===========================================
+# Testing
+# ===========================================
+coverage
+**/coverage
+.nyc_output
+**/.nyc_output
+
+# ===========================================
+# Logs
+# ===========================================
+logs
+**/*.log
+**/npm-debug.log*
+**/pnpm-debug.log*
+
+# ===========================================
+# CI/CD & Docs
+# ===========================================
+.github
+.gitlab-ci.yml
+README.md
+CHANGELOG.md
+docs
+**/docs
+
+# ===========================================
+# Docker (prevent recursion)
+# ===========================================
+Dockerfile
+**/Dockerfile
+docker-compose*.yml
+.docker
+**/.docker
+
+# ===========================================
+# Misc
+# ===========================================
+.turbo
+**/.turbo
+.cache
+**/.cache
+*.tsbuildinfo
+**/*.tsbuildinfo
