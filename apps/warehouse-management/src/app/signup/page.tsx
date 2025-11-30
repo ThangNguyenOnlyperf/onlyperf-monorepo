@@ -5,9 +5,9 @@ import SignUpForm from "~/components/auth/SignUpForm";
 export const dynamic = 'force-dynamic';
 
 export default async function SignUpPage() {
-  const state = await getSetupState();
-  if (!state.needsSetup) {
-    redirect("/signin");
+  const {needsSetup} = await getSetupState();
+  if (needsSetup) {
+    redirect("/setup");
   }
   return <SignUpForm />;
 }
