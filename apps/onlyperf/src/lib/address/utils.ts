@@ -1,9 +1,5 @@
 import type { CustomerAddress } from "@/lib/shopify/customer-account-api";
 
-/**
- * Vietnamese Address Structure
- * Used for address collection with Province API cascading selects
- */
 export interface VietnameseAddress {
   firstName: string;
   lastName: string;
@@ -19,10 +15,6 @@ export interface VietnameseAddress {
   company?: string | null;
 }
 
-/**
- * Shopify-compatible Address Format
- * Used for API calls to Shopify Admin/Customer APIs
- */
 export interface ShopifyAddress {
   firstName: string;
   lastName: string;
@@ -36,16 +28,6 @@ export interface ShopifyAddress {
   company?: string | null;
 }
 
-/**
- * Convert Vietnamese address structure to Shopify format
- *
- * Mapping:
- * - city = provinceName (e.g., "Hồ Chí Minh")
- * - address1 = districtName + wardName + street (e.g., "Quận 1, Phường Bến Nghé, 80 Điện Biên Phủ")
- * - province = null (not used for Vietnam)
- * - country = "VN"
- * - zip = "700000" (default)
- */
 export function convertToShopifyAddress(
   vietnamese: VietnameseAddress,
 ): ShopifyAddress {
@@ -63,10 +45,6 @@ export function convertToShopifyAddress(
   };
 }
 
-/**
- * Convert Shopify CustomerAddress to display format
- * Extracts key information for UI display
- */
 export function formatCustomerAddressForDisplay(address: CustomerAddress): {
   id: string;
   firstName: string;
@@ -95,10 +73,6 @@ export function formatCustomerAddressForDisplay(address: CustomerAddress): {
   };
 }
 
-/**
- * Format address for single-line display
- * Example: "80 Điện Biên Phủ, Quận 1, Hồ Chí Minh"
- */
 export function formatAddressOneLine(address: {
   address1?: string | null;
   city?: string | null;
@@ -107,10 +81,6 @@ export function formatAddressOneLine(address: {
   return parts.join(", ");
 }
 
-/**
- * Format address for multi-line display
- * Returns array of address lines
- */
 export function formatAddressMultiLine(address: {
   address1?: string | null;
   address2?: string | null;
@@ -134,10 +104,6 @@ export function formatAddressMultiLine(address: {
   return lines;
 }
 
-/**
- * Format name from first and last name
- * Example: "Nguyen" + "Thang" => "Nguyen Thang"
- */
 export function formatFullName(
   firstName?: string | null,
   lastName?: string | null,
@@ -145,9 +111,6 @@ export function formatFullName(
   return [lastName, firstName].filter(Boolean).join(" ");
 }
 
-/**
- * Validate if address has minimum required fields for Shopify
- */
 export function isValidShopifyAddress(
   address: Partial<ShopifyAddress>,
 ): address is ShopifyAddress {
@@ -162,9 +125,6 @@ export function isValidShopifyAddress(
   );
 }
 
-/**
- * Validate if Vietnamese address has all required fields
- */
 export function isValidVietnameseAddress(
   address: Partial<VietnameseAddress>,
 ): address is VietnameseAddress {
@@ -182,9 +142,6 @@ export function isValidVietnameseAddress(
   );
 }
 
-/**
- * Check if CustomerAddress has all fields populated
- */
 export function isCompleteCustomerAddress(
   address: CustomerAddress | null | undefined,
 ): boolean {
@@ -199,13 +156,6 @@ export function isCompleteCustomerAddress(
   );
 }
 
-/**
- * Parse Vietnamese phone number to E.164 format
- * Examples:
- * - "0898271703" => "+84898271703"
- * - "+84898271703" => "+84898271703"
- * - "84898271703" => "+84898271703"
- */
 export function formatPhoneNumberE164(phone: string): string {
   // Remove all non-digit characters
   const digits = phone.replace(/\D/g, "");
@@ -229,10 +179,6 @@ export function formatPhoneNumberE164(phone: string): string {
   return `+84${digits}`;
 }
 
-/**
- * Format phone number for display (remove +84 prefix)
- * Example: "+84898271703" => "0898271703"
- */
 export function formatPhoneNumberDisplay(phone: string): string {
   if (phone.startsWith("+84")) {
     return `0${phone.slice(3)}`;

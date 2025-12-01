@@ -56,7 +56,6 @@ export async function POST(request: Request): Promise<Response> {
       customerAddress: result.customerAddress,
     });
   } catch (error) {
-    console.error("Error creating customer address:", error);
     return NextResponse.json({ error: "Lỗi máy chủ nội bộ" }, { status: 500 });
   }
 }

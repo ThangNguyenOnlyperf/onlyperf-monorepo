@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import {
@@ -17,13 +17,21 @@ const addressFormSchema = z
   .object({
     firstName: z.string().min(1, "Vui lòng nhập tên"),
     lastName: z.string().min(1, "Vui lòng nhập họ"),
-    phone: z.string().min(1, "Vui lòng nhập số điện thoại"),
-    provinceCode: z.number(),
-    provinceName: z.string(),
-    districtCode: z.number(),
-    districtName: z.string(),
-    wardCode: z.number(),
-    wardName: z.string(),
+    phone: z
+      .string()
+      .min(1, "Vui lòng nhập số điện thoại")
+      .refine((val) => val.startsWith("0"), {
+        message: "Số điện thoại phải bắt đầu bằng 0",
+      })
+      .refine((val) => val.length === 10, {
+        message: "Số điện thoại phải có 10 số",
+      }),
+    provinceCode: z.number().optional(),
+    provinceName: z.string().optional(),
+    districtCode: z.number().optional(),
+    districtName: z.string().optional(),
+    wardCode: z.number().optional(),
+    wardName: z.string().optional(),
     address1: z.string().min(1, "Vui lòng nhập địa chỉ"),
     address2: z.string().optional().nullable(),
     company: z.string().optional().nullable(),
@@ -43,6 +51,21 @@ const addressFormSchema = z
 
 type AddressFormData = z.infer<typeof addressFormSchema>;
 
+export type AddressFormInitialValues = {
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  provinceCode?: number;
+  provinceName?: string;
+  districtCode?: number;
+  districtName?: string;
+  wardCode?: number;
+  wardName?: string;
+  address1?: string;
+  address2?: string | null;
+  company?: string | null;
+};
+
 interface AddressFormProps {
   onSuccess: () => void;
   onCancel: () => void;
@@ -58,12 +81,16 @@ interface AddressFormProps {
     zip: string | null;
     company?: string | null;
   }) => Promise<{ success: boolean; error?: string }>;
+  initialValues?: AddressFormInitialValues;
+  mode?: "create" | "edit";
 }
 
 export function AddressForm({
   onSuccess,
   onCancel,
   saveAddress,
+  initialValues,
+  mode = "create",
 }: AddressFormProps) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -72,24 +99,51 @@ export function AddressForm({
     resolver: zodResolver(addressFormSchema),
     mode: "onBlur",
     defaultValues: {
-      firstName: "",
-      lastName: "",
-      phone: "",
-      provinceCode: undefined,
-      provinceName: "",
-      districtCode: undefined,
-      districtName: "",
-      wardCode: undefined,
-      wardName: "",
-      address1: "",
-      address2: null,
-      company: null,
+      firstName: initialValues?.firstName ?? "",
+      lastName: initialValues?.lastName ?? "",
+      phone: initialValues?.phone ?? "",
+      provinceCode: initialValues?.provinceCode ?? undefined,
+      provinceName: initialValues?.provinceName ?? "",
+      districtCode: initialValues?.districtCode ?? undefined,
+      districtName: initialValues?.districtName ?? "",
+      wardCode: initialValues?.wardCode ?? undefined,
+      wardName: initialValues?.wardName ?? "",
+      address1: initialValues?.address1 ?? "",
+      address2: initialValues?.address2 ?? null,
+      company: initialValues?.company ?? null,
     },
   });
 
   const provinceCode = form.watch("provinceCode");
   const districtCode = form.watch("districtCode");
   const errors = form.formState.errors;
+
+  const prevProvinceCode = useRef(provinceCode);
+  const prevDistrictCode = useRef(districtCode);
+
+  useEffect(() => {
+    if (
+      prevProvinceCode.current !== undefined &&
+      prevProvinceCode.current !== provinceCode
+    ) {
+      form.setValue("districtCode", undefined as unknown as number);
+      form.setValue("districtName", "");
+      form.setValue("wardCode", undefined as unknown as number);
+      form.setValue("wardName", "");
+    }
+    prevProvinceCode.current = provinceCode;
+  }, [provinceCode, form]);
+
+  useEffect(() => {
+    if (
+      prevDistrictCode.current !== undefined &&
+      prevDistrictCode.current !== districtCode
+    ) {
+      form.setValue("wardCode", undefined as unknown as number);
+      form.setValue("wardName", "");
+    }
+    prevDistrictCode.current = districtCode;
+  }, [districtCode, form]);
 
   const handleSubmit = async (data: AddressFormData) => {
     setError(null);
@@ -102,10 +156,10 @@ export function AddressForm({
         address1: data.address1,
         address2: data.address2,
         company: data.company,
-        city: data.wardName,
-        province: `${data.wardName}, ${data.districtName}, ${data.provinceName}`,
+        city: data.wardName ?? null,
+        province: `${data.wardName ?? ""}, ${data.districtName ?? ""}, ${data.provinceName ?? ""}`,
         country: "VN",
-        zip: String(data.wardCode),
+        zip: data.wardCode ? String(data.wardCode) : null,
       });
 
       if (!result.success) {
@@ -123,21 +177,6 @@ export function AddressForm({
       {error && (
         <div className="rounded-md bg-red-50 border border-red-200 p-4 text-sm text-red-900">
           {error}
-        </div>
-      )}
-
-      {Object.keys(errors).length > 0 && (
-        <div className="rounded-md bg-yellow-50 border border-yellow-200 p-4">
-          <h3 className="text-sm font-semibold text-yellow-900 mb-2">
-            ⚠️ Vui lòng hoàn thành các trường bắt buộc
-          </h3>
-          <ul className="list-disc list-inside text-sm text-yellow-800 space-y-1">
-            {Object.entries(errors)
-              .filter(([_, error]) => error?.message)
-              .map(([field, error]) => (
-                <li key={field}>{error?.message as string}</li>
-              ))}
-          </ul>
         </div>
       )}
 
@@ -261,7 +300,11 @@ export function AddressForm({
           disabled={isPending}
           className="flex-1 h-12 bg-primary hover:bg-primary/90"
         >
-          {isPending ? "Đang lưu..." : "Lưu địa chỉ"}
+          {isPending
+            ? "Đang lưu..."
+            : mode === "edit"
+              ? "Cập nhật"
+              : "Lưu địa chỉ"}
         </Button>
       </div>
     </form>
