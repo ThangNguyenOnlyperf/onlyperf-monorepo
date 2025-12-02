@@ -9,8 +9,7 @@ export default async function AdminLayout({
   try {
     await requireAdmin();
   } catch (error) {
-    // User is not an admin, redirect to dashboard
-    redirect('/dashboard?error=unauthorized');
+    redirect('/dashboard');
   }
 
   return <>{children}</>;
