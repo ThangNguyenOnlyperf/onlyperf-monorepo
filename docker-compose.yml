@@ -1,8 +1,7 @@
 # Docker Compose for OnlyPerf Monorepo
 # Usage:
-#   1. Copy .env.example to .env at monorepo root
-#   2. Copy apps/*/env.example to apps/*/.env.local for build secrets
-#   3. Run: docker-compose build && docker-compose up -d
+#   1. Copy .env.example to .env at monorepo root (or set in Dokploy UI)
+#   2. Run: docker-compose build && docker-compose up -d
 
 services:
   onlyperf:
@@ -10,7 +9,7 @@ services:
       context: .
       dockerfile: apps/onlyperf/Dockerfile
       secrets:
-        - env_onlyperf
+        - env
       args:
         # Public vars (baked into client bundle at build time)
         NEXT_PUBLIC_STORE_DOMAIN: ${NEXT_PUBLIC_STORE_DOMAIN}
@@ -18,7 +17,7 @@ services:
     ports:
       - "3000:3000"
     env_file:
-      - apps/onlyperf/.env
+      - .env
     environment:
       NODE_ENV: production
     restart: unless-stopped
@@ -28,7 +27,7 @@ services:
       context: .
       dockerfile: apps/warehouse-management/Dockerfile
       secrets:
-        - env_warehouse
+        - env
       args:
         # Public vars (baked into client bundle at build time)
         NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://warehouse.onlyperf.com}
@@ -37,13 +36,13 @@ services:
     ports:
       - "3001:3001"
     env_file:
-      - apps/warehouse-management/.env
+      - .env
     environment:
       NODE_ENV: production
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3001}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
     restart: unless-stopped
 
 secrets:
-  env_onlyperf:
-    file: apps/onlyperf/.env
-  env_warehouse:
-    file: apps/warehouse-management/.env
+  env:
+    file: .env
