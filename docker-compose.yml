@@ -21,6 +21,14 @@ services:
     environment:
       NODE_ENV: production
     restart: unless-stopped
+    networks:
+      - dokploy-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.onlyperf.rule=Host(`onlyperf.com`)"
+      - "traefik.http.routers.onlyperf.entrypoints=websecure"
+      - "traefik.http.routers.onlyperf.tls.certresolver=letsencrypt"
+      - "traefik.http.services.onlyperf.loadbalancer.server.port=3000"
 
   warehouse:
     build:
@@ -42,6 +50,18 @@ services:
       BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3001}
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
     restart: unless-stopped
+    networks:
+      - dokploy-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.warehouse.rule=Host(`warehouse.onlyperf.com`)"
+      - "traefik.http.routers.warehouse.entrypoints=websecure"
+      - "traefik.http.routers.warehouse.tls.certresolver=letsencrypt"
+      - "traefik.http.services.warehouse.loadbalancer.server.port=3001"
+
+networks:
+  dokploy-network:
+    external: true
 
 secrets:
   env:
