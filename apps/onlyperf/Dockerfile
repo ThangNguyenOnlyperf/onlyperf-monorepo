@@ -29,7 +29,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 # Build with secrets mounted (not stored in image layers)
 # The .env file contains sensitive server-side vars like SHOPIFY_* and DATABASE_URL
-RUN --mount=type=secret,id=env,target=/app/.env \
+RUN --mount=type=secret,id=env,target=/app/apps/onlyperf/.env \
     pnpm build
 
 FROM base AS runner

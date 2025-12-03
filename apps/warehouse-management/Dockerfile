@@ -32,7 +32,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 # Build with secrets mounted (not stored in image layers)
 # The .env file contains sensitive server-side vars like DATABASE_URL, BETTER_AUTH_SECRET, etc.
-RUN --mount=type=secret,id=env,target=/app/.env \
+RUN --mount=type=secret,id=env,target=/app/apps/warehouse-management/.env \
     --network=default \
     pnpm build
 
