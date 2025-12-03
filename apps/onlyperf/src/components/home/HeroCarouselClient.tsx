@@ -66,8 +66,8 @@ export function HeroCarouselClient({
             type="button"
             onClick={() => api?.scrollTo(index)}
             className={cn(
-              "pointer-events-auto h-2 w-8 rounded-full transition cursor-pointer",
-              isActive ? "bg-primary" : "bg-primary/30 hover:bg-primary/60",
+              "pointer-events-auto h-3 w-3 rounded-full transition cursor-pointer",
+              isActive ? "bg-white" : "bg-white/30 hover:bg-white/60",
             )}
             aria-label={`Go to slide ${index + 1}`}
             aria-current={isActive}
@@ -86,15 +86,15 @@ export function HeroCarouselClient({
 
   return (
     <section
-      className={cn("relative overflow-hidden rounded-3xl", className)}
+      className={cn("relative overflow-hidden mb-12 ", className)}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
-      <Carousel setApi={setApi} opts={{ loop: true }} className="rounded-3xl">
+      <Carousel setApi={setApi} opts={{ loop: true }}>
         <CarouselContent>
           {slides.map((slide, index) => (
             <CarouselItem key={slide.id}>
-              <article className="relative flex min-h-[480px] w-full items-center overflow-hidden rounded-3xl bg-black text-white md:min-h-[560px]">
+              <article className="relative flex min-h-[480px] min-w-full items-center overflow-hidden bg-black text-white md:min-h-[560px]">
                 <div className="absolute inset-0">
                   <Image
                     src={slide.image.src}
@@ -107,108 +107,101 @@ export function HeroCarouselClient({
                   />
                 </div>
                 <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-black/70 via-black/35 to-transparent" />
-                <motion.div
-                  className="relative z-10 mx-auto flex w-full max-w-4xl flex-col gap-6 px-6 py-12 md:px-12 md:py-20 lg:px-16"
-                  initial="hidden"
-                  animate="visible"
-                  variants={{
-                    visible: {
-                      transition: {
-                        staggerChildren: 0.15,
-                        delayChildren: 0.2,
-                      },
-                    },
-                  }}
-                >
-                  {slide.eyebrow ? (
-                    <motion.span
-                      className="text-sm font-medium uppercase tracking-[0.3em] text-white/70"
-                      variants={{
-                        hidden: { opacity: 0, y: 20 },
-                        visible: {
-                          opacity: 1,
-                          y: 0,
-                          transition: { duration: 0.5 },
-                        },
-                      }}
-                    >
-                      {slide.eyebrow}
-                    </motion.span>
-                  ) : null}
-                  <motion.h2
-                    className="text-2xl md:text-4xl font-semibold tracking-tight  lg:text-6xl"
+                <div className="w-full container-max">
+                  <motion.div
+                    className="relative z-10 px-6 bottom-[4rem] flex flex-col gap-6"
+                    initial="hidden"
+                    animate="visible"
                     variants={{
-                      hidden: { opacity: 0, y: 30 },
                       visible: {
-                        opacity: 1,
-                        y: 0,
-                        transition: { duration: 0.6 },
+                        transition: {
+                          staggerChildren: 0.15,
+                          delayChildren: 0.2,
+                        },
                       },
                     }}
                   >
-                    {slide.title}
-                  </motion.h2>
-                  {slide.description ? (
-                    <motion.p
-                      className="max-w-xl text-sm sm:text-base text-white/80 lg:text-lg"
+                    <motion.h2
+                      className="text-2xl md:text-4xl max-w-xl font-semibold tracking-tight w-fit lg:text-6xl"
                       variants={{
-                        hidden: { opacity: 0, y: 20 },
+                        hidden: { opacity: 0, y: 30 },
                         visible: {
                           opacity: 1,
                           y: 0,
-                          transition: { duration: 0.5 },
+                          transition: { duration: 0.6 },
                         },
                       }}
                     >
-                      {slide.description}
-                    </motion.p>
-                  ) : null}
-                  {slide.ctas && slide.ctas.length > 0 ? (
-                    <motion.div
-                      className="flex flex-col gap-3 sm:flex-row"
-                      variants={{
-                        hidden: { opacity: 0, y: 20 },
-                        visible: {
-                          opacity: 1,
-                          y: 0,
-                          transition: {
-                            duration: 0.5,
-                            staggerChildren: 0.1,
+                      {slide.title}
+                    </motion.h2>
+                    {slide.description ? (
+                      <motion.p
+                        className="max-w-md prose text-sm line-clamp-3 leading-8 sm:text-base text-white/80 lg:text-lg"
+                        variants={{
+                          hidden: { opacity: 0, y: 20 },
+                          visible: {
+                            opacity: 1,
+                            y: 0,
+                            transition: { duration: 0.5 },
                           },
-                        },
-                      }}
-                    >
-                      {slide.ctas.map((cta) => (
-                        <motion.div
-                          key={cta.label}
-                          variants={{
-                            hidden: { opacity: 0, scale: 0.9 },
-                            visible: { opacity: 1, scale: 1 },
-                          }}
-                        >
-                          <Button
-                            asChild
-                            variant={cta.variant ?? "default"}
-                            className={cn(
-                              "pointer-events-auto",
-                              cta.variant === "outline"
-                                ? "border-white/70 text-white hover:border-white hover:bg-white/10"
-                                : "",
-                            )}
+                        }}
+                      >
+                        {slide.description}
+                      </motion.p>
+                    ) : null}
+                    {slide.ctas && slide.ctas.length > 0 ? (
+                      <motion.div
+                        className="flex flex-col gap-3 sm:flex-row"
+                        variants={{
+                          hidden: { opacity: 0, y: 20 },
+                          visible: {
+                            opacity: 1,
+                            y: 0,
+                            transition: {
+                              duration: 0.5,
+                              staggerChildren: 0.1,
+                            },
+                          },
+                        }}
+                      >
+                        {slide.ctas.map((cta) => (
+                          <motion.div
+                            key={cta.label}
+                            variants={{
+                              hidden: { opacity: 0, scale: 0.9 },
+                              visible: { opacity: 1, scale: 1 },
+                            }}
                           >
-                            <Link href={cta.href}>{cta.label}</Link>
-                          </Button>
-                        </motion.div>
-                      ))}
-                    </motion.div>
-                  ) : null}
-                </motion.div>
+                            <Button
+                              asChild
+                              variant={cta.variant ?? "default"}
+                              className={cn(
+                                "pointer-events-auto",
+                                cta.variant === "outline"
+                                  ? "border-white/70 text-white hover:border-white hover:bg-white/10"
+                                  : "",
+                              )}
+                            >
+                              <Link href={cta.href}>{cta.label}</Link>
+                            </Button>
+                          </motion.div>
+                        ))}
+                      </motion.div>
+                    ) : null}
+                  </motion.div>
+                </div>
               </article>
             </CarouselItem>
           ))}
         </CarouselContent>
-        <CarouselPrevious className="left-4 hidden lg:flex cursor-pointer" />
-        <CarouselNext className="right-4 hidden lg:flex cursor-pointer" />
+        <div className="pointer-events-none absolute inset-0 flex items-end">
+          <div className="container-max relative w-full pb-4">
+            <div className="pointer-events-auto absolute right-4 bottom-12 flex gap-2">
+              <CarouselPrevious className="static translate-x-0 translate-y-0 hidden lg:flex cursor-pointer" />
+              <CarouselNext className="static translate-x-0 translate-y-0 hidden lg:flex cursor-pointer" />
+            </div>
+          </div>
+        </div>
       </Carousel>
       <div className="pointer-events-none absolute bottom-6 left-1/2 flex -translate-x-1/2 items-center gap-2">
         {pagination}

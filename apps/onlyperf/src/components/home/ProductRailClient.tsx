@@ -49,9 +49,9 @@ export function ProductRailClient({ tabs, className }: ProductRailClientProps) {
                 key={tab.id}
                 value={tab.id}
                 className={cn(
-                  "rounded-full border border-brand px-3 py-2 text-xs font-semibold uppercase tracking-[0.1em] transition sm:px-5 sm:text-sm sm:tracking-[0.14em]",
-                  "data-[state=active]:bg-brand data-[state=active]:text-white",
-                  "data-[state=inactive]:bg-white data-[state=inactive]:text-brand hover:data-[state=inactive]:bg-brand/10",
+                  "h-10 px-5 py-2 border font-semibold uppercase tracking-[0.2em] transition-colors",
+                  "data-[state=inactive]:border-zinc-300 data-[state=inactive]:bg-white data-[state=inactive]:text-zinc-700 data-[state=inactive]:hover:bg-zinc-50",
+                  "data-[state=active]:border-brand data-[state=active]:bg-brand data-[state=active]:text-white data-[state=active]:hover:bg-brand/90",
                 )}
               >
                 {tab.label}
@@ -64,7 +64,7 @@ export function ProductRailClient({ tabs, className }: ProductRailClientProps) {
               asChild
               className="px-0 text-sm font-semibold text-zinc-900 underline-offset-4 hover:underline"
             >
-              <Link href={active.seeAllHref} aria-label="Xem tất cả sản phẩm">
+              <Link className="text-primary! hover:text-primary" href={active.seeAllHref} aria-label="Xem tất cả sản phẩm">
                 Xem tất cả
               </Link>
             </Button>
@@ -77,7 +77,7 @@ export function ProductRailClient({ tabs, className }: ProductRailClientProps) {
             <div className="grid grid-cols-2 gap-3 mb-0 sm:hidden">
               {tab.items.map((item) => (
                 <Link key={item.id} href={item.href} className="block">
-                  <article className="group flex flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white">
+                  <article className="group flex flex-col overflow-hidden border border-zinc-200 bg-white">
                     <div className="relative aspect-square w-full overflow-hidden bg-zinc-100">
                       <Image
                         src={item.image.src}
@@ -140,7 +140,7 @@ export function ProductRailClient({ tabs, className }: ProductRailClientProps) {
 function ProductRailCard({ item }: { item: ProductRailItem }) {
   return (
     <Link href={item.href} className="block h-full">
-      <article className="group flex h-full flex-col overflow-hidden rounded-[32px] border border-zinc-200 bg-white shadow-sm">
+      <article className="group flex h-full flex-col overflow-hidden border border-zinc-200 bg-white shadow-sm">
         <div className="relative aspect-square w-full overflow-hidden bg-zinc-100">
           <Image
             src={item.image.src}

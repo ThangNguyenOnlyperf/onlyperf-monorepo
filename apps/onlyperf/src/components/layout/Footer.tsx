@@ -44,7 +44,7 @@ export function Footer() {
                 <p className="font-medium">Tổng đài CSKH</p>
                 <a
                   href="tel:0918635365"
-                  className="hover:text-zinc-900 dark:hover:text-white"
+                  className="hover:text-primary! dark:hover:!text-primary"
                 >
                   xxxx.xxx.xxx
                 </a>
@@ -53,7 +53,7 @@ export function Footer() {
                 <p className="font-medium">Phòng kinh doanh</p>
                 <a
                   href="mailto:business@perf.com"
-                  className="hover:text-zinc-900 dark:hover:text-white"
+                  className="hover:!text-primary dark:hover:!text-primary"
                 >
                   business@perf.com
                 </a>
@@ -70,7 +70,7 @@ export function Footer() {
               <li>
                 <Link
                   href="/about"
-                  className="hover:text-zinc-900 dark:hover:text-white"
+                  className="hover:!text-primary dark:hover:!text-primary"
                 >
                   Giới thiệu
                 </Link>
@@ -78,7 +78,7 @@ export function Footer() {
               <li>
                 <Link
                   href="/team"
-                  className="hover:text-zinc-900 dark:hover:text-white"
+                  className="hover:!text-primary dark:hover:!text-primary"
                 >
                   Đội ngũ
                 </Link>
@@ -86,7 +86,7 @@ export function Footer() {
               <li>
                 <Link
                   href="/careers"
-                  className="hover:text-zinc-900 dark:hover:text-white"
+                  className="hover:!text-primary dark:hover:!text-primary"
                 >
                   Tuyển dụng
                 </Link>
@@ -94,7 +94,7 @@ export function Footer() {
               <li>
                 <Link
                   href="/privacy"
-                  className="hover:text-zinc-900 dark:hover:text-white"
+                  className="hover:!text-primary dark:hover:!text-primary"
                 >
                   Chính sách bảo mật
                 </Link>
@@ -102,7 +102,7 @@ export function Footer() {
               <li>
                 <Link
                   href="/terms"
-                  className="hover:text-zinc-900 dark:hover:text-white"
+                  className="hover:!text-primary dark:hover:!text-primary"
                 >
                   Điều khoản sử dụng
                 </Link>
@@ -120,7 +120,7 @@ export function Footer() {
                 <li>
                   <Link
                     href="/collections?category=rackets"
-                    className="hover:text-zinc-900 dark:hover:text-white"
+                    className="hover:!text-primary dark:hover:!text-primary"
                   >
                     Vợt Pickleball
                   </Link>
@@ -128,7 +128,7 @@ export function Footer() {
                 <li>
                   <Link
                     href="/collections?category=apparel"
-                    className="hover:text-zinc-900 dark:hover:text-white"
+                    className="hover:!text-primary dark:hover:!text-primary"
                   >
                     Quần áo
                   </Link>
@@ -136,7 +136,7 @@ export function Footer() {
                 <li>
                   <Link
                     href="/collections?category=balls"
-                    className="hover:text-zinc-900 dark:hover:text-white"
+                    className="hover:!text-primary dark:hover:!text-primary"
                   >
                     Bóng
                   </Link>
@@ -144,7 +144,7 @@ export function Footer() {
                 <li>
                   <Link
                     href="/collections?category=accessories"
-                    className="hover:text-zinc-900 dark:hover:text-white"
+                    className="hover:!text-primary dark:hover:!text-primary"
                   >
                     Phụ kiện
                   </Link>
@@ -160,7 +160,7 @@ export function Footer() {
                 <li>
                   <Link
                     href="/rules"
-                    className="hover:text-zinc-900 dark:hover:text-white"
+                    className="hover:!text-primary dark:hover:!text-primary"
                   >
                     Luật chơi
                   </Link>
@@ -168,7 +168,7 @@ export function Footer() {
                 <li>
                   <Link
                     href="/tournaments"
-                    className="hover:text-zinc-900 dark:hover:text-white"
+                    className="hover:!text-primary dark:hover:!text-primary"
                   >
                     Giải đấu
                   </Link>
@@ -176,7 +176,7 @@ export function Footer() {
                 <li>
                   <Link
                     href="/tips"
-                    className="hover:text-zinc-900 dark:hover:text-white"
+                    className="hover:!text-primary dark:hover:!text-primary"
                   >
                     Tips
                   </Link>

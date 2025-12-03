@@ -49,7 +49,7 @@ export function GalleryClient({ items, className }: GalleryClientProps) {
             type="button"
             onClick={() => onOpen(it)}
             aria-label={it.alt ?? "Xem ảnh"}
-            className="group relative aspect-[3/4] w-full overflow-hidden rounded-3xl bg-muted cursor-pointer"
+            className="group relative aspect-[3/4] w-full overflow-hidden bg-muted cursor-pointer"
             variants={{
               hidden: { opacity: 0, scale: 0.9 },
               visible: {
@@ -84,7 +84,7 @@ export function GalleryClient({ items, className }: GalleryClientProps) {
       >
         <DialogContent className="max-w-4xl border-none bg-transparent p-0 shadow-none">
           {active ? (
-            <div className="relative overflow-hidden rounded-3xl bg-black">
+            <div className="relative overflow-hidden bg-black">
               <button
                 type="button"
                 onClick={() => setOpen(false)}

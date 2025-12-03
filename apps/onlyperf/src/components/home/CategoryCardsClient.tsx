@@ -69,21 +69,26 @@ export function CategoryCardsClient({
 
   return (
     <motion.section
-      className={cn("space-y-4", className)}
+      className={cn("space-y-6", className)}
       initial={{ opacity: 0, y: 30 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: VIEWPORT_MARGIN }}
       transition={{ duration: 0.6, ease: "easeOut" }}
     >
-      <motion.h2
-        className="px-1 text-sm font-semibold uppercase tracking-[0.14em] text-zinc-500"
-        initial={{ opacity: 0, x: -20 }}
-        whileInView={{ opacity: 1, x: 0 }}
+      <motion.div
+        className="flex flex-col items-center text-center space-y-2"
+        initial={{ opacity: 0, y: -20 }}
+        whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
-        transition={{ duration: 0.5, delay: 0.2 }}
+        transition={{ duration: 0.5, delay: 0.1 }}
       >
-        Danh mục nổi bật
-      </motion.h2>
+        <h2 className="px-1 text-2xl sm:text-3xl md:text-4xl font-semibold uppercase tracking-[0.14em] text-zinc-500">
+          Danh mục nổi bật
+        </h2>
+        <p className="text-sm text-zinc-400">
+          Tìm chính xác những gì bạn cần
+        </p>
+      </motion.div>
       <motion.div
         className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
         initial="hidden"

@@ -45,11 +45,11 @@ export function NavAuthSection({ variant, onNavigate }: NavAuthSectionProps) {
         {isLoading ? (
           <span className="text-muted-foreground">Đang tải...</span>
         ) : isAuthenticated && displayName ? (
-          <Link href="/account" className="hover:underline">
+          <Link href="/account" className="hover:!text-primary hover:underline hover:decoration-primary">
             {displayName}
           </Link>
         ) : (
-          <Link href="/login" className="hover:underline">
+          <Link href="/login" className="hover:!text-primary hover:underline hover:decoration-primary">
             Đăng nhập
           </Link>
         )}
@@ -70,7 +70,7 @@ export function NavAuthSection({ variant, onNavigate }: NavAuthSectionProps) {
       ) : isAuthenticated && displayName ? (
         <Link
           href="/account"
-          className="flex items-center justify-between rounded-md px-3 pl-0 py-2 text-sm font-medium hover:bg-muted"
+          className="flex items-center justify-between rounded-md px-3 pl-0 py-2 text-sm font-medium hover:!text-primary hover:underline hover:decoration-primary"
           onClick={onNavigate}
         >
           <div className="flex items-center gap-2">
@@ -81,7 +81,7 @@ export function NavAuthSection({ variant, onNavigate }: NavAuthSectionProps) {
       ) : (
         <Link
           href="/login"
-          className="flex items-center justify-between rounded-md px-3 pl-0 py-2 text-sm font-medium hover:bg-muted"
+          className="flex items-center justify-between rounded-md px-3 pl-0 py-2 text-sm font-medium hover:!text-primary hover:underline hover:decoration-primary"
           onClick={onNavigate}
         >
           <div className="flex items-center gap-2">

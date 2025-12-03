@@ -62,22 +62,22 @@ export default async function Home() {
   return (
     <>
       <JsonLd data={[organizationSchema, websiteSchema]} />
-      <div className="container-max flex flex-col gap-8 md:gap-16 px-4 py-6">
-        {/* Hero section */}
-        {heroData?.heroSlides && heroData.heroSlides.length > 0 && (
-          <HeroCarousel slides={heroData.heroSlides} />
-        )}
-
-        {/* Product rails */}
-        {railsAndCategoriesData?.productRailTabs &&
-          railsAndCategoriesData.productRailTabs.length > 0 && (
-            <ProductRail tabs={railsAndCategoriesData.productRailTabs} />
-          )}
+      {/* Hero section */}
+      {heroData?.heroSlides && heroData.heroSlides.length > 0 && (
+        <HeroCarousel slides={heroData.heroSlides} />
+      )}
+      <div className="container-max flex flex-col gap-8 md:gap-16 px-4 pb-6 ">
 
         {/* Categories */}
         {railsAndCategoriesData?.categories &&
           railsAndCategoriesData.categories.length > 0 && (
             <CategoryCards items={railsAndCategoriesData.categories} />
+          )}
+
+        {/* Product rails */}
+        {railsAndCategoriesData?.productRailTabs &&
+          railsAndCategoriesData.productRailTabs.length > 0 && (
+            <ProductRail tabs={railsAndCategoriesData.productRailTabs} />    
           )}
 
         {/* Discovery banners */}

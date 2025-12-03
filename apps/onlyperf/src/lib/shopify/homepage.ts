@@ -113,7 +113,7 @@ async function fetchHeroContent(
         ctas: [
           {
             href: `/products/${product.handle}`,
-            label: "View product",
+            label: "Xem Chi Tiết",
           },
         ],
       };

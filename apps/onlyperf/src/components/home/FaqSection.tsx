@@ -110,7 +110,7 @@ export function FaqSection({
               transition={{ duration: 0.4, delay: 0.1 * index }}
             >
               <AccordionItem value={item.id} className="border-zinc-200">
-                <AccordionTrigger>{item.question}</AccordionTrigger>
+                <AccordionTrigger className="hover:cursor-pointer">{item.question}</AccordionTrigger>
                 <AccordionContent className="text-base leading-relaxed text-zinc-600 pb-6">
                   {item.answer}
                 </AccordionContent>

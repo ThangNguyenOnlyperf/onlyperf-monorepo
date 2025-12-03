@@ -114,7 +114,7 @@ export function Navbar({ className }: NavbarProps) {
       NAV_LINKS.map((item) => (
         <NavigationMenuItem key={item.label}>
           <NavigationMenuLink asChild>
-            <Link href={item.href} className={navigationMenuTriggerStyle()}>
+            <Link href={item.href} className={`${navigationMenuTriggerStyle()} hover:!text-primary hover:underline hover:decoration-primary`}>
               {item.label}
             </Link>
           </NavigationMenuLink>
@@ -161,7 +161,7 @@ export function Navbar({ className }: NavbarProps) {
                   <Link
                     key={item.label}
                     href={item.href}
-                    className="flex items-center justify-between rounded-md px-3 pl-0 py-2 text-sm font-medium hover:bg-muted"
+                    className="flex items-center justify-between rounded-md px-3 pl-0 py-2 text-sm font-medium hover:!text-primary hover:underline hover:decoration-primary"
                     onClick={() => setIsMobileOpen(false)}
                   >
                     <div className="flex flex-col">
@@ -183,7 +183,7 @@ export function Navbar({ className }: NavbarProps) {
               </nav>
               <Separator />
               <SheetFooter className="gap-3 text-sm text-muted-foreground">
-                Cần hỗ trợ? <Link href="/contact">Liên hệ</Link>
+                Cần hỗ trợ? <Link href="/contact" className="hover:!text-primary hover:underline hover:decoration-primary">Liên hệ</Link>
               </SheetFooter>
             </SheetContent>
           </Sheet>
@@ -222,7 +222,7 @@ export function Navbar({ className }: NavbarProps) {
           <NavAuthSection variant="desktop" />
           <Link
             href="/cart"
-            className="flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium"
+            className="flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium hover:!text-primary hover:underline hover:decoration-primary"
             aria-label="Mở giỏ hàng"
           >
             <div className="relative mr-2">
