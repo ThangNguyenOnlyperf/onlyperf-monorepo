@@ -5,9 +5,9 @@ import { db } from "~/server/db";
 import { user, account, session, verification } from "~/server/db/schema";
 
 export const auth = betterAuth({
-  baseURL: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
+  baseURL: process.env.BETTER_AUTH_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3001",
   trustedOrigins: [
-    process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
+    process.env.BETTER_AUTH_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3001",
   ],
   database: drizzleAdapter(db, {
     provider: "pg",

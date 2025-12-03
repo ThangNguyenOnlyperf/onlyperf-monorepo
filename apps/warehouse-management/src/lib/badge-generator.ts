@@ -8,6 +8,20 @@ import type { BadgeConfig } from './badge-config-schema';
 import { getBadgeTemplate } from './badge-config-schema';
 import { logger } from '~/lib/logger';
 
+// Limit Sharp's internal cache to prevent memory leaks
+sharp.cache({ memory: 50, files: 20, items: 100 });
+sharp.concurrency(2);
+
+// Template buffer cache to avoid re-reading the same file
+const templateCache = new Map<string, Buffer>();
+
+/**
+ * Clear the template cache - call after PDF generation to free memory
+ */
+export function clearTemplateCache(): void {
+  templateCache.clear();
+}
+
 export interface BadgeItem {
   id: string;
   shortCode: string;
@@ -40,24 +54,36 @@ async function createQrBuffer(
 }
 
 /**
- * Fetch template image from public URL or local filesystem
+ * Fetch template image from public URL or local filesystem (with caching)
  */
 async function fetchTemplateBuffer(templatePath: string): Promise<Buffer> {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+  // Check cache first
+  const cached = templateCache.get(templatePath);
+  if (cached) {
+    return cached;
+  }
+
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://onlyperf.com';
+  let buffer: Buffer;
 
   try {
     const url = `${baseUrl}${templatePath}`;
     const response = await fetch(url);
 
     if (response.ok) {
-      return Buffer.from(await response.arrayBuffer());
+      buffer = Buffer.from(await response.arrayBuffer());
+    } else {
+      throw new Error('URL fetch failed');
     }
   } catch (error) {
     logger.warn({ error }, 'Failed to fetch template from URL, falling back to filesystem');
+    const templateAbsolute = path.resolve(process.cwd(), `public${templatePath}`);
+    buffer = await fs.readFile(templateAbsolute);
   }
 
-  const templateAbsolute = path.resolve(process.cwd(), `public${templatePath}`);
-  return await fs.readFile(templateAbsolute);
+  // Cache the buffer for reuse
+  templateCache.set(templatePath, buffer);
+  return buffer;
 }
 
 /**

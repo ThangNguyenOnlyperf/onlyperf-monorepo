@@ -6,6 +6,7 @@ import {
   generateTemplatePDFWithQRCodes,
   convertToQRCodeItems,
 } from "~/lib/pdf-template-overlay";
+import { clearTemplateCache } from "~/lib/badge-generator";
 import { auth } from "~/lib/auth";
 import { headers } from "next/headers";
 import { logger, getUserContext } from "~/lib/logger";
@@ -107,6 +108,9 @@ export async function GET(
 
     // Generate PDF using fixed pdf-lib approach (vector quality)
     const pdfBuffer = await generateTemplatePDFWithQRCodes(qrItems);
+
+    // Clear caches after generation to free memory
+    clearTemplateCache();
 
     const pageCount = Math.ceil(qrItems.length / 44);
 

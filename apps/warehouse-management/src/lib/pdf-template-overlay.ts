@@ -1,6 +1,10 @@
 import { PDFDocument, PDFPage, rgb } from "pdf-lib";
 import QRCode from "qrcode";
 import sharp from "sharp";
+
+// Limit Sharp's internal cache to prevent memory leaks on repeated generation
+sharp.cache({ memory: 50, files: 20, items: 100 });
+sharp.concurrency(2); // Limit concurrent operations
 import {
   type TemplateConfig,
   type SlotCoordinate,
@@ -27,10 +31,10 @@ function transformCoordinatesForRotation(
 ): { x: number; y: number } {
   switch (rotation) {
     case 90:
-      // 90° clockwise: (left, top) → (top, configWidth - left - qrWidth)
+      // 90° rotation: x = top, y = left (direct mapping for this template)
       return {
         x: top,
-        y: configPageWidth - left - qrWidth,
+        y: left,
       };
     case 180:
       return {
@@ -82,14 +86,14 @@ async function generateQRCodePNG(
 ): Promise<Buffer> {
   const sizePixels = Math.round(cmToPoints(sizeCm) * 2); // 2x resolution for quality
 
-  // Generate QR code as data URL
+  // Generate QR code as data URL with transparent background
   const qrDataURL = await QRCode.toDataURL(data, {
     errorCorrectionLevel: options?.errorCorrectionLevel ?? "L",
     margin: options?.margin ?? 1,
     width: sizePixels,
     color: {
       dark: options?.color?.dark ?? "#000000",
-      light: options?.color?.light ?? "#FFFFFF",
+      light: "#00000000", // Transparent background (RGBA)
     },
   });
 
@@ -97,20 +101,22 @@ async function generateQRCodePNG(
   const base64Data = qrDataURL.replace(/^data:image\/png;base64,/, "");
   const buffer = Buffer.from(base64Data, "base64");
 
-  // Process with sharp to ensure exact dimensions
+  // Process with sharp: rotate -90° to match template coordinate system
   return sharp(buffer)
+    .rotate(-90, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
     .resize(sizePixels, sizePixels, {
       fit: "contain",
-      background: { r: 255, g: 255, b: 255, alpha: 1 },
+      background: { r: 0, g: 0, b: 0, alpha: 0 }, // Transparent background
     })
     .png()
     .toBuffer();
 }
 
 /**
- * Batch generate QR codes for all items
+ * Generate QR codes for a single page worth of items
+ * This limits memory usage by only holding one page's worth of buffers at a time
  */
-async function generateQRCodeBatch(
+async function generateQRCodesForPage(
   items: QRCodeItem[],
   qrSizeCm: number,
   options?: PDFGenerationOptions["qrCodeOptions"]
@@ -194,70 +200,43 @@ export async function generateTemplatePDFWithQRCodes(
   // Load template configuration
   const config = await loadTemplateConfig(templateConfigPath);
 
-  // Load template PDF
+  // Load template PDF as source document
   const templatePath = path.join(process.cwd(), "public", templatePDFPath);
   const templateBytes = await fs.readFile(templatePath);
-  const pdfDoc = await PDFDocument.load(templateBytes);
+  const templateDoc = await PDFDocument.load(templateBytes);
 
-  // Get the first page as template (we'll copy this for additional pages)
-  const copiedPages = await pdfDoc.copyPages(pdfDoc, [0]);
-  const templatePage = copiedPages[0];
-
-  if (!templatePage) {
-    throw new Error("Failed to copy template page");
-  }
-
-  // Remove all existing pages
-  const pageCount = pdfDoc.getPageCount();
-  for (let i = pageCount - 1; i >= 0; i--) {
-    pdfDoc.removePage(i);
-  }
-
-  // Generate all QR codes in parallel
-  const qrBuffers = await generateQRCodeBatch(
-    items,
-    config.qrCodeSize.width,
-    options.qrCodeOptions
-  );
+  // Create new output document
+  const pdfDoc = await PDFDocument.create();
 
   // Calculate how many pages needed
   const slotsPerPage = config.grid.totalSlots;
   const totalPages = Math.ceil(items.length / slotsPerPage);
 
-  // Embed template page ONCE (outside loop to avoid duplication)
-  const templateImage = await pdfDoc.embedPage(templatePage);
-
-  // Determine physical page dimensions (swap if rotated 90° or 270°)
-  const rotation = config.pageRotation ?? 0;
-  const isRotated = rotation === 90 || rotation === 270;
-  const physicalWidth = isRotated ? config.pageSize.height : config.pageSize.width;
-  const physicalHeight = isRotated ? config.pageSize.width : config.pageSize.height;
-
-  // Process each page
+  // Process each page - generate QR codes per-page to limit memory usage
   for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
-    // Add a new page with correct physical dimensions
-    const newPage = pdfDoc.addPage([
-      cmToPoints(physicalWidth),
-      cmToPoints(physicalHeight),
-    ]);
+    // Copy template page from source document (preserves original formatting)
+    const [copiedPage] = await pdfDoc.copyPages(templateDoc, [0]);
+    const newPage = pdfDoc.addPage(copiedPage);
 
-    // Draw the template (reusing the embedded reference)
-    newPage.drawPage(templateImage, {
-      x: 0,
-      y: 0,
-      width: cmToPoints(physicalWidth),
-      height: cmToPoints(physicalHeight),
-    });
+    // Get actual page rotation (PDF may have internal rotation flag)
+    const pageRotation = newPage.getRotation().angle as 0 | 90 | 180 | 270;
 
     // Calculate item range for this page
     const startIdx = pageIndex * slotsPerPage;
     const endIdx = Math.min(startIdx + slotsPerPage, items.length);
     const pageItems = items.slice(startIdx, endIdx);
 
+    // Generate QR codes for THIS PAGE ONLY (memory optimization)
+    const qrBuffers = await generateQRCodesForPage(
+      pageItems,
+      config.qrCodeSize.width,
+      options.qrCodeOptions
+    );
+
     // Overlay QR codes for this page
     for (let i = 0; i < pageItems.length; i++) {
       const slot = config.coordinates[i];
-      const qrBuffer = qrBuffers[startIdx + i];
+      const qrBuffer = qrBuffers[i];
 
       if (!slot) {
         console.warn(
@@ -279,9 +258,12 @@ export async function generateTemplatePDFWithQRCodes(
         qrBuffer,
         slot,
         config,
-        config.pageRotation ?? 0
+        pageRotation // Use actual page rotation for coordinate transformation
       );
     }
+
+    // Clear buffer references to allow GC (memory optimization)
+    qrBuffers.length = 0;
   }
 
   // Save PDF to buffer

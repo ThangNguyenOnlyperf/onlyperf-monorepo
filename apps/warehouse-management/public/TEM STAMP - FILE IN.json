@@ -2,105 +2,101 @@
   "templateName": "TEM STAMP - FILE IN",
   "templateFile": "TEM STAMP - FILE IN.pdf",
   "pageSize": {
-    "width": 17,
-    "height": 16,
+    "width": 16,
+    "height": 17.01,
     "unit": "cm"
   },
-  "pageRotation": 90,
+  "pageRotation": 0,
   "grid": {
-    "rows": 11,
+    "rows": 10,
     "cols": 4,
-    "totalSlots": 44
+    "totalSlots": 40
   },
   "spacing": {
-    "rowOffset": 1.51,
-    "colOffset": 3.80,
+    "rowOffset": 1.60,
+    "colOffset": 3.70,
     "description": "rowOffset: vertical spacing between rows (cm), colOffset: horizontal spacing between columns (cm)"
   },
   "baseCoordinates": {
     "row1": {
-      "left": 0.48,
-      "top": 13.94,
+      "left": 1.08,
+      "top": 0.67,
       "description": "Starting position for row 1"
     },
     "row2": {
-      "left": 1.99,
-      "top": 13.92,
+      "left": 1.08,
+      "top": 2.27,
       "description": "Starting position for row 2 (validates row offset calculation)"
     }
   },
   "slotDimensions": {
-    "width": 1.03,
-    "height": 0.99,
+    "width": 1.26,
+    "height": 1.26,
     "unit": "cm",
-    "description": "Average dimensions of each QR slot"
+    "description": "Each label square is 35.7pt x 35.7pt"
   },
   "qrCodeSize": {
     "width": 1.2,
     "height": 1.2,
     "unit": "cm",
-    "description": "Target QR code size (larger than slot - will overflow for better scannability)"
+    "description": "Target QR code size"
   },
   "coordinates": [
-    {"row": 1, "col": 1, "left": 0.48, "top": 13.94},
-    {"row": 1, "col": 2, "left": 0.48, "top": 10.14},
-    {"row": 1, "col": 3, "left": 0.48, "top": 6.34},
-    {"row": 1, "col": 4, "left": 0.48, "top": 2.54},
+    {"row": 1, "col": 1, "left": 1.08, "top": 0.67},
+    {"row": 1, "col": 2, "left": 4.78, "top": 0.67},
+    {"row": 1, "col": 3, "left": 8.48, "top": 0.67},
+    {"row": 1, "col": 4, "left": 12.17, "top": 0.67},
 
-    {"row": 2, "col": 1, "left": 1.99, "top": 13.92},
-    {"row": 2, "col": 2, "left": 1.99, "top": 10.12},
-    {"row": 2, "col": 3, "left": 1.99, "top": 6.32},
-    {"row": 2, "col": 4, "left": 1.99, "top": 2.52},
+    {"row": 2, "col": 1, "left": 1.08, "top": 2.27},
+    {"row": 2, "col": 2, "left": 4.78, "top": 2.27},
+    {"row": 2, "col": 3, "left": 8.48, "top": 2.27},
+    {"row": 2, "col": 4, "left": 12.17, "top": 2.27},
 
-    {"row": 3, "col": 1, "left": 3.50, "top": 13.90},
-    {"row": 3, "col": 2, "left": 3.50, "top": 10.10},
-    {"row": 3, "col": 3, "left": 3.50, "top": 6.30},
-    {"row": 3, "col": 4, "left": 3.50, "top": 2.50},
+    {"row": 3, "col": 1, "left": 1.08, "top": 3.87},
+    {"row": 3, "col": 2, "left": 4.78, "top": 3.87},
+    {"row": 3, "col": 3, "left": 8.48, "top": 3.87},
+    {"row": 3, "col": 4, "left": 12.17, "top": 3.87},
 
-    {"row": 4, "col": 1, "left": 5.01, "top": 13.88},
-    {"row": 4, "col": 2, "left": 5.01, "top": 10.08},
-    {"row": 4, "col": 3, "left": 5.01, "top": 6.28},
-    {"row": 4, "col": 4, "left": 5.01, "top": 2.48},
+    {"row": 4, "col": 1, "left": 1.08, "top": 5.47},
+    {"row": 4, "col": 2, "left": 4.78, "top": 5.47},
+    {"row": 4, "col": 3, "left": 8.48, "top": 5.47},
+    {"row": 4, "col": 4, "left": 12.17, "top": 5.47},
 
-    {"row": 5, "col": 1, "left": 6.52, "top": 13.86},
-    {"row": 5, "col": 2, "left": 6.52, "top": 10.06},
-    {"row": 5, "col": 3, "left": 6.52, "top": 6.26},
-    {"row": 5, "col": 4, "left": 6.52, "top": 2.46},
+    {"row": 5, "col": 1, "left": 1.08, "top": 7.07},
+    {"row": 5, "col": 2, "left": 4.78, "top": 7.07},
+    {"row": 5, "col": 3, "left": 8.48, "top": 7.07},
+    {"row": 5, "col": 4, "left": 12.17, "top": 7.07},
 
-    {"row": 6, "col": 1, "left": 8.03, "top": 13.84},
-    {"row": 6, "col": 2, "left": 8.03, "top": 10.04},
-    {"row": 6, "col": 3, "left": 8.03, "top": 6.24},
-    {"row": 6, "col": 4, "left": 8.03, "top": 2.44},
+    {"row": 6, "col": 1, "left": 1.08, "top": 8.66},
+    {"row": 6, "col": 2, "left": 4.78, "top": 8.66},
+    {"row": 6, "col": 3, "left": 8.48, "top": 8.66},
+    {"row": 6, "col": 4, "left": 12.17, "top": 8.66},
 
-    {"row": 7, "col": 1, "left": 9.54, "top": 13.82},
-    {"row": 7, "col": 2, "left": 9.54, "top": 10.02},
-    {"row": 7, "col": 3, "left": 9.54, "top": 6.22},
-    {"row": 7, "col": 4, "left": 9.54, "top": 2.42},
+    {"row": 7, "col": 1, "left": 1.08, "top": 10.26},
+    {"row": 7, "col": 2, "left": 4.78, "top": 10.26},
+    {"row": 7, "col": 3, "left": 8.48, "top": 10.26},
+    {"row": 7, "col": 4, "left": 12.17, "top": 10.26},
 
-    {"row": 8, "col": 1, "left": 11.05, "top": 13.80},
-    {"row": 8, "col": 2, "left": 11.05, "top": 10.00},
-    {"row": 8, "col": 3, "left": 11.05, "top": 6.20},
-    {"row": 8, "col": 4, "left": 11.05, "top": 2.40},
+    {"row": 8, "col": 1, "left": 1.08, "top": 11.86},
+    {"row": 8, "col": 2, "left": 4.78, "top": 11.86},
+    {"row": 8, "col": 3, "left": 8.48, "top": 11.86},
+    {"row": 8, "col": 4, "left": 12.17, "top": 11.86},
 
-    {"row": 9, "col": 1, "left": 12.56, "top": 13.78},
-    {"row": 9, "col": 2, "left": 12.56, "top": 9.98},
-    {"row": 9, "col": 3, "left": 12.56, "top": 6.18},
-    {"row": 9, "col": 4, "left": 12.56, "top": 2.38},
+    {"row": 9, "col": 1, "left": 1.08, "top": 13.46},
+    {"row": 9, "col": 2, "left": 4.78, "top": 13.46},
+    {"row": 9, "col": 3, "left": 8.48, "top": 13.46},
+    {"row": 9, "col": 4, "left": 12.17, "top": 13.46},
 
-    {"row": 10, "col": 1, "left": 14.07, "top": 13.76},
-    {"row": 10, "col": 2, "left": 14.07, "top": 9.96},
-    {"row": 10, "col": 3, "left": 14.07, "top": 6.16},
-    {"row": 10, "col": 4, "left": 14.07, "top": 2.36},
-
-    {"row": 11, "col": 1, "left": 15.58, "top": 13.74},
-    {"row": 11, "col": 2, "left": 15.58, "top": 9.94},
-    {"row": 11, "col": 3, "left": 15.58, "top": 6.14},
-    {"row": 11, "col": 4, "left": 15.58, "top": 2.34}
+    {"row": 10, "col": 1, "left": 1.08, "top": 15.06},
+    {"row": 10, "col": 2, "left": 4.78, "top": 15.06},
+    {"row": 10, "col": 3, "left": 8.48, "top": 15.06},
+    {"row": 10, "col": 4, "left": 12.17, "top": 15.06}
   ],
   "notes": {
     "coordinateSystem": "Coordinates use Preview app measurement (top-left origin). Top = distance from top edge of page. Left = distance from left edge.",
     "conversion": "PDF coordinates use bottom-left origin. During PDF generation, convert: pdfY = pageHeight - top",
     "centering": "QR code should be centered in slot: qrLeft = left + (slotWidth - qrWidth)/2, qrTop = top + (slotHeight - qrHeight)/2",
-    "pagination": "If shipment has > 44 items, duplicate template page and continue with remaining items"
+    "pagination": "If shipment has > 40 items, duplicate template page and continue with remaining items",
+    "measurements": "Original measurements in pt: left margin 30.7pt, top margin 19.1pt, square 35.7pt, h-gap 69.1pt, v-gap 9.6pt"
   }
 }
