@@ -91,10 +91,15 @@ const NAV_LINKS: NavLink[] = [
     description: "Banh pickleball tiêu chuẩn thi đấu, độ bền cao.",
   },
   {
-    label: "Tin tức / Hướng dẫn",
+    label: "Tin tức",
     // TODO: dynamic link from shopify
     href: "/blogs",
     description: "Mẹo, kỹ thuật và tin tức mới nhất về pickleball.",
+  },
+  {
+    label: "Liên hệ",
+    href: "/contact",
+    description: "Thông tin liên hệ, các trang mạng xã hội và thương mại điện tử.",
   },
 ];
 

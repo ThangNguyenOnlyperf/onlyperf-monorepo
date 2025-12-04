@@ -160,14 +160,14 @@ function ProductRailCard({ item }: { item: ProductRailItem }) {
           </button>
         </div>
         <div className="flex min-h-[140px] flex-1 flex-col gap-2 px-4 py-5">
-          <span className="text-base font-bold text-zinc-900">
-            {item.price}
-          </span>
           <h3 className="line-clamp-3 text-sm font-light leading-tight text-zinc-900 transition hover:text-zinc-600">
             {item.title}
           </h3>
           <span className="mt-auto text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
             {item.category}
+          </span>
+          <span className="text-base font-bold text-zinc-900">
+            {item.price}
           </span>
         </div>
       </article>

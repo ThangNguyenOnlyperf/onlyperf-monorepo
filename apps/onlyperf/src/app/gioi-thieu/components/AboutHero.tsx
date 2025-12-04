@@ -1,6 +1,7 @@
 "use client";
 
 import { motion, useScroll, useTransform } from "framer-motion";
+import { ArrowDown } from "lucide-react";
 import { useRef } from "react";
 
 export function AboutHero() {
@@ -74,17 +75,7 @@ export function AboutHero() {
               }}
               className="inline-block"
             >
-              <svg
-                className="h-6 w-6 text-emerald-600"
-                fill="none"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-              </svg>
+              <ArrowDown className="h-6 w-6 text-emerald-600" />
             </motion.div>
           </motion.div>
         </div>

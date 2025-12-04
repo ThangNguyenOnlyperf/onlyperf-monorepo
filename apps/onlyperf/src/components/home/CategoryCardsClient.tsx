@@ -76,7 +76,7 @@ export function CategoryCardsClient({
       transition={{ duration: 0.6, ease: "easeOut" }}
     >
       <motion.div
-        className="flex flex-col items-center text-center space-y-2"
+        className="flex flex-col space-y-2"
         initial={{ opacity: 0, y: -20 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
@@ -106,7 +106,7 @@ export function CategoryCardsClient({
           <Link
             key={item.id}
             href={item.href}
-            className="group relative block overflow-hidden border border-transparent transition-all duration-300 hover:border-black focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2"
+            className="group relative block rounded-xl group overflow-hidden border border-transparent transition-all duration-300 hover:border-black focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2"
           >
             <motion.article
               variants={{
@@ -117,9 +117,9 @@ export function CategoryCardsClient({
                   transition: { duration: 0.6, ease: "easeOut" },
                 },
               }}
-              className="relative"
+              className="relative "
             >
-              <div className="relative aspect-[3/4] w-full">
+              <div className="relative aspect-3/4 transition-all duration-400 ease-in-out group-hover:scale-105">
                 {!loadedImages.has(item.id) && <CategoryCardSkeleton />}
                 <Image
                   src={item.image.src}

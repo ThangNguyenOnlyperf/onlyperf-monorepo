@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 
 export const metadata: Metadata = {
@@ -36,19 +37,7 @@ export default function NotFound() {
             className="inline-flex items-center justify-center rounded-xl bg-black px-8 py-4 text-base font-medium text-white shadow-xl transition-all duration-200 hover:bg-zinc-800 hover:scale-105 focus:outline-none focus:ring-4 focus:ring-zinc-300 dark:bg-white dark:text-black dark:hover:bg-zinc-200 dark:focus:ring-zinc-700"
           >
             Trở về trang chủ
-            <svg
-              className="ml-2 h-5 w-5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M17 8l4 4m0 0l-4 4m4-4H3"
-              />
-            </svg>
+            <ArrowRight className="ml-2 h-5 w-5" />
           </Link>
         </div>
 

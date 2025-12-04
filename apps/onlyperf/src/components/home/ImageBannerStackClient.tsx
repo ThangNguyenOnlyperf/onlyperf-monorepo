@@ -66,7 +66,7 @@ export function ImageBannerStackClient({
                 aria-label={item.alt}
                 className="group relative block w-full overflow-hidden rounded-none"
               >
-                <div className="relative aspect-[16/9]">
+                <div className="relative aspect-video">
                   <Image
                     src={item.src}
                     alt={item.alt}

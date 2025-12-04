@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { User } from "lucide-react";
 import { VIEWPORT_MARGIN } from "@/components/lib/constants";
 
 interface TeamMember {
@@ -106,17 +107,7 @@ export function TeamSection() {
                     //   className="object-cover transition-transform duration-500 group-hover:scale-110"
                     // />
                     null : (
-                      <svg
-                        className="h-24 w-24 text-emerald-600/30"
-                        fill="currentColor"
-                        viewBox="0 0 20 20"
-                      >
-                        <path
-                          fillRule="evenodd"
-                          d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
+                      <User className="h-24 w-24 text-emerald-600/30" />
                     )}
                   </div>
 

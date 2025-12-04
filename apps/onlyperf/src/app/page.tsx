@@ -68,11 +68,6 @@ export default async function Home() {
       )}
       <div className="container-max flex flex-col gap-8 md:gap-16 px-4 pb-6 ">
 
-        {/* Categories */}
-        {railsAndCategoriesData?.categories &&
-          railsAndCategoriesData.categories.length > 0 && (
-            <CategoryCards items={railsAndCategoriesData.categories} />
-          )}
 
         {/* Product rails */}
         {railsAndCategoriesData?.productRailTabs &&
@@ -80,6 +75,11 @@ export default async function Home() {
             <ProductRail tabs={railsAndCategoriesData.productRailTabs} />    
           )}
 
+          {/* Categories */}
+          {railsAndCategoriesData?.categories &&
+            railsAndCategoriesData.categories.length > 0 && (
+              <CategoryCards items={railsAndCategoriesData.categories} />
+            )}
         {/* Discovery banners */}
         {discoveryAndCommunityData?.discoveryBanners &&
           discoveryAndCommunityData.discoveryBanners.length > 0 && (
