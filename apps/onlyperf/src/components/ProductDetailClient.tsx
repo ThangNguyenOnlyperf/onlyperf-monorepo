@@ -5,6 +5,7 @@ import { ProductAddToCartButton } from "@/components/product/ProductAddToCartBut
 import { ProductDetailsSection } from "@/components/product/ProductDetailsSection";
 import { ProductMeta } from "@/components/product/ProductMeta";
 import { ProductVariantImages } from "@/components/product/ProductVariantImages";
+import { ProductQuantityPills } from "@/components/product/ProductQuantityPills";
 import {
   ColorSelector,
   SizeSelector,
@@ -90,16 +91,23 @@ export function ProductDetailClient({ product }: ProductDetailClientProps) {
           onSelect={setSelectedColorToken}
         />
 
-        <ProductAddToCartButton
-          isAdding={isAdding}
-          showSuccess={showSuccess}
-          availableForSale={selectedVariant.availableForSale}
-          quantity={quantity}
-          currencyCode={selectedVariant.price.currencyCode}
-          totalPrice={totalPrice}
-          productTitle={product.title}
-          onClick={handleAddToCart}
-        />
+        <div className="flex items-center gap-3">
+          <ProductQuantityPills
+            quantity={quantity}
+          />
+          <div className="flex-1">
+            <ProductAddToCartButton
+              isAdding={isAdding}
+              showSuccess={showSuccess}
+              availableForSale={selectedVariant.availableForSale}
+              quantity={quantity}
+              currencyCode={selectedVariant.price.currencyCode}
+              totalPrice={totalPrice}
+              productTitle={product.title}
+              onClick={handleAddToCart}
+            />
+          </div>
+        </div>
 
         <ProductDetailsSection
           isOpen={isDetailsOpen}

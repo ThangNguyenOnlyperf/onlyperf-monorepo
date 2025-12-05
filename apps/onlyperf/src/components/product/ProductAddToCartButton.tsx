@@ -93,7 +93,9 @@ export function ProductAddToCartButton({
             exit={{ opacity: 0 }}
           >
             Thêm {quantity} vào giỏ • {currencyCode === "VND" ? "₫" : "$"}
-            {totalPrice}
+            {currencyCode === "VND"
+              ? new Intl.NumberFormat("vi-VN").format(parseFloat(totalPrice))
+              : totalPrice}
           </motion.span>
         )}
       </AnimatePresence>

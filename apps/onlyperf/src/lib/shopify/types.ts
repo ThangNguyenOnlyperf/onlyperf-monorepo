@@ -17,6 +17,7 @@ export interface StorefrontProductVariant {
   id: string;
   title: string;
   availableForSale: boolean;
+  quantityAvailable?: number | null;
   price: StorefrontProductVariantPrice;
   image: StorefrontProductImage | null;
   selectedOptions: StorefrontProductVariantSelectedOption[];

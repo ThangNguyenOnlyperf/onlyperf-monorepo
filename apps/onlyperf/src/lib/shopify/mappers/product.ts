@@ -9,6 +9,7 @@ export interface ProductVariantNode {
   id: string;
   title: string;
   availableForSale: boolean;
+  quantityAvailable: number | null;
   price: StorefrontProductVariant["price"];
   image: StorefrontProductImage | null;
   selectedOptions: StorefrontProductVariant["selectedOptions"];
@@ -73,6 +74,7 @@ export function toStorefrontProduct(
       id: variantNode.id,
       title: variantNode.title,
       availableForSale: variantNode.availableForSale,
+      quantityAvailable: variantNode.quantityAvailable ?? null,
       price: variantNode.price,
       image: variantNode.image,
       selectedOptions: variantNode.selectedOptions,

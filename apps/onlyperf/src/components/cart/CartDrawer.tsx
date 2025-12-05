@@ -79,7 +79,6 @@ export function CartDrawer({}: CartDrawerProps) {
   const totalQuantity =
     cart.totalQuantity ??
     lines.reduce((sum, line) => sum + (line.quantity ?? 0), 0);
-
   // Detect if cart is currently updating
   const isCartUpdating =
     cart.status !== "idle" && cart.status !== "uninitialized";

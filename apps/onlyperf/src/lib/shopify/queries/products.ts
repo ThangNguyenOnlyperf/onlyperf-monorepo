@@ -30,6 +30,7 @@ export const PRODUCT_BY_HANDLE_QUERY = `#graphql
             id
             title
             availableForSale
+            quantityAvailable
             price {
               amount
               currencyCode
