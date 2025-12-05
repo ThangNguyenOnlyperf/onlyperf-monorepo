@@ -97,6 +97,7 @@ export default function NewShipmentClient({
         open={isCreateModalOpen}
         onOpenChange={setIsCreateModalOpen}
         brands={brands}
+        colors={colors}
         onProductCreated={(newProduct: Product) => {
           // Optimistically add the new product to the list
           setProducts(prev => [...prev, newProduct]);
