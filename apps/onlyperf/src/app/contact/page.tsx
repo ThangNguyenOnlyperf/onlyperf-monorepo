@@ -40,11 +40,10 @@ export default function ContactPage() {
         {/* Hero Section */}
         <ContactHero />
 
-        {/* Contact Information Cards */}
-        <ContactInfo />
-
-        {/* Social Media Links */}
-        <SocialMedia />
+        <div className="grid grid-cols-1 md:grid-cols-2">
+          <ContactInfo />
+          <SocialMedia />
+        </div>
       </div>
     </>
   );

@@ -15,21 +15,21 @@ interface SocialLink {
 const SOCIAL_LINKS: SocialLink[] = [
   {
     id: "facebook",
-    name: "Facebook",
+    name: "Trang Chủ OnlyPerf",
     url: "https://facebook.com/onlyperf",
     ariaLabel: "Theo dõi OnlyPerf trên Facebook",
     icon: <Facebook className="h-8 w-8" />,
   },
   {
     id: "instagram",
-    name: "Instagram",
+    name: "Trang Instagram chính thức của chúng tôi",
     url: "https://instagram.com/onlyperf",
     ariaLabel: "Theo dõi OnlyPerf trên Instagram",
     icon: <Instagram className="h-8 w-8" />,
   },
   {
     id: "tiktok",
-    name: "TikTok",
+    name: "Kênh Tiktok chính thức của OnlyPerf",
     url: "https://tiktok.com/@onlyperf",
     ariaLabel: "Theo dõi OnlyPerf trên TikTok",
     icon: (
@@ -44,7 +44,7 @@ export function SocialMedia() {
   return (
     <section>
       <div className="container-page">
-        <div className="flex flex-col-reverse lg:grid gap-12 lg:grid-cols-2 lg:gap-16">
+        <div className="flex flex-col-reverse gap-4">
           {/* Left Column: Social Cards Stacked Vertically */}
           <div className="flex flex-col gap-6">
             {SOCIAL_LINKS.map((social, index) => (

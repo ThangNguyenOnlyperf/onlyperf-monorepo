@@ -69,18 +69,15 @@ export function ContactInfo() {
   return (
     <section className="container-max mx-auto">
       <div className="container-page">
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="flex flex-col gap-4">
           {/* Left Column: Intro Text */}
-          <div className="flex flex-col space-y-6">
+          <div className="flex flex-col">
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               whileInView={{ opacity: 1, scale: 1 }}
               viewport={{ once: true, margin: VIEWPORT_MARGIN }}
               transition={{ duration: 0.5, delay: 0.1 }}
             >
-              <span className="inline-block rounded-full bg-brand/10 px-4 py-1.5 text-sm font-medium text-brand">
-                Thông tin liên hệ
-              </span>
             </motion.div>
 
             <motion.h2
@@ -98,9 +95,9 @@ export function ContactInfo() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: VIEWPORT_MARGIN }}
               transition={{ duration: 0.5, delay: 0.3 }}
-              className="text-base leading-relaxed text-zinc-600"
+              className="text-base leading-relaxed text-zinc-600 mt-6 "
             >
-              OnlyPerf luôn sẵn sàng lắng nghe và hỗ trợ bạn. Liên hệ với chúng tôi qua các kênh sau để được tư vấn nhanh chóng và tận tâm.
+              Liên hệ với chúng tôi qua các kênh sau để được tư vấn nhanh chóng và tận tâm.
             </motion.p>
           </div>
 
