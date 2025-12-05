@@ -3,24 +3,32 @@
 import { cookies } from "next/headers";
 import { auth } from "~/lib/auth";
 import { db } from "~/server/db";
-import { user, shipments, orders, deliveries, deliveryHistory } from "~/server/db/schema";
+import { user, shipments, orders, deliveries, deliveryHistory, member } from "~/server/db/schema";
 import { count, eq } from "drizzle-orm";
 import type { ActionResult } from "./types";
 import { signUpEmailServer } from "~/lib/auth-server";
 import { revalidatePath } from "next/cache";
 import { logger, getUserContext } from "~/lib/logger";
+import {
+  CreateUserSchema,
+  UpdateRoleSchema,
+  SetPasswordSchema,
+  DeleteUserSchema,
+  parseFormData,
+} from "~/lib/schemas/userSchema";
 
 export async function createUserAction(formData: FormData): Promise<ActionResult> {
   try {
-    const name = String(formData.get("name") || "").trim();
-    const email = String(formData.get("email") || "").trim();
-    const password = String(formData.get("password") || "").trim();
-    const role = String(formData.get("role") || "user").trim();
+    const rawData = parseFormData(formData);
+    const parsed = CreateUserSchema.safeParse(rawData);
 
-    if (!name || !email || !password) {
-      logger.warn({ name: !!name, email: !!email, password: !!password }, "User creation failed: Missing required fields");
-      return { success: false, error: "Thiếu thông tin bắt buộc" };
+    if (!parsed.success) {
+      const firstError = parsed.error.errors[0]?.message ?? "Dữ liệu không hợp lệ";
+      logger.warn({ errors: parsed.error.errors }, "User creation failed: Validation error");
+      return { success: false, error: firstError };
     }
+
+    const { name, email, password, role } = parsed.data;
 
     // RBAC: only admin can create users
     const hdrs = new Headers();
@@ -30,7 +38,7 @@ export async function createUserAction(formData: FormData): Promise<ActionResult
     const session = await auth.api.getSession({ headers: hdrs });
     const userContext = getUserContext(session);
 
-    if (!session?.user || session.user.role !== "admin") {
+    if (session?.user?.role !== "admin") {
       logger.warn({ ...userContext, targetEmail: email }, "User creation denied: Unauthorized access attempt");
       return { success: false, error: "Không có quyền thực hiện" };
     }
@@ -39,9 +47,9 @@ export async function createUserAction(formData: FormData): Promise<ActionResult
 
     const result = await signUpEmailServer({ email, password, name });
     if (!result.ok) {
-      const rawCode = (result as any)?.body?.code as string | undefined;
-      const code = rawCode?.toUpperCase();
-      let message = result.error || "Tạo tài khoản thất bại";
+      const errorBody = result.body as { code?: string; message?: string } | null;
+      const code = errorBody?.code?.toUpperCase() ?? "";
+      let message = String(result.error);
       if (code === "USER_ALREADY_EXISTS" || /already exists/i.test(message)) {
         message = "Email đã tồn tại";
       } else if (code === "INVALID_EMAIL" || /invalid email/i.test(message)) {
@@ -53,8 +61,35 @@ export async function createUserAction(formData: FormData): Promise<ActionResult
       return { success: false, error: message };
     }
 
-    if (role === "admin" || role === "user") {
-      await db.update(user).set({ role }).where(eq(user.email, email));
+    // Update user role
+    await db.update(user).set({ role }).where(eq(user.email, email));
+
+    // Add user to the same organization as the admin
+    const sessionData = session.session as { activeOrganizationId?: string } | undefined;
+    const activeOrgId = sessionData?.activeOrganizationId;
+    const successBody = result.user as { id: string } | null;
+    const newUserId = successBody?.id;
+
+    if (activeOrgId && newUserId) {
+      // Map app role to org role: admin → admin, user → member
+      const orgRole = role === "admin" ? "admin" : "member";
+
+      const memberId = `mbr_${crypto.randomUUID().replace(/-/g, "").slice(0, 24)}`;
+      await db.insert(member).values({
+        id: memberId,
+        userId: newUserId,
+        organizationId: activeOrgId,
+        role: orgRole,
+        createdAt: new Date(),
+      });
+
+      logger.info({
+        ...userContext,
+        targetUserId: newUserId,
+        targetEmail: email,
+        organizationId: activeOrgId,
+        orgRole,
+      }, `Added user to organization with role ${orgRole}`);
     }
 
     logger.info({ ...userContext, targetEmail: email, targetName: name, targetRole: role }, `User ${userContext.userName} created new user ${name} (${email}) with role ${role}`);
@@ -68,12 +103,16 @@ export async function createUserAction(formData: FormData): Promise<ActionResult
 
 export async function updateUserRoleAction(formData: FormData): Promise<ActionResult> {
   try {
-    const userId = String(formData.get("userId") || "").trim();
-    const role = String(formData.get("role") || "").trim();
-    if (!userId || (role !== "admin" && role !== "user")) {
-      logger.warn({ userId, role }, "Role update failed: Invalid request parameters");
-      return { success: false, error: "Yêu cầu không hợp lệ" };
+    const rawData = parseFormData(formData);
+    const parsed = UpdateRoleSchema.safeParse(rawData);
+
+    if (!parsed.success) {
+      const firstError = parsed.error.errors[0]?.message ?? "Dữ liệu không hợp lệ";
+      logger.warn({ errors: parsed.error.errors }, "Role update failed: Validation error");
+      return { success: false, error: firstError };
     }
+
+    const { userId, role } = parsed.data;
 
     // RBAC: only admin can update roles
     const hdrs = new Headers();
@@ -83,7 +122,7 @@ export async function updateUserRoleAction(formData: FormData): Promise<ActionRe
     const session = await auth.api.getSession({ headers: hdrs });
     const userContext = getUserContext(session);
 
-    if (!session?.user || session.user.role !== "admin") {
+    if (session?.user?.role !== "admin") {
       logger.warn({ ...userContext, targetUserId: userId, newRole: role }, "Role update denied: Unauthorized access attempt");
       return { success: false, error: "Không có quyền thực hiện" };
     }
@@ -95,7 +134,7 @@ export async function updateUserRoleAction(formData: FormData): Promise<ActionRe
 
     await db.update(user).set({ role }).where(eq(user.id, userId));
 
-    logger.info({ ...userContext, targetUserId: userId, targetEmail: targetUser?.email, oldRole: targetUser?.role, newRole: role }, `User ${userContext.userName} updated role of ${targetUser?.name || targetUser?.email} from ${targetUser?.role} to ${role}`);
+    logger.info({ ...userContext, targetUserId: userId, targetEmail: targetUser?.email, oldRole: targetUser?.role, newRole: role }, `User ${userContext.userName} updated role of ${targetUser?.name ?? targetUser?.email} from ${targetUser?.role} to ${role}`);
     revalidatePath("/admin/users");
     return { success: true, message: "Cập nhật vai trò thành công" };
   } catch (e) {
@@ -106,14 +145,14 @@ export async function updateUserRoleAction(formData: FormData): Promise<ActionRe
 
 // Wrappers for useActionState in client components
 export async function createUserActionState(
-  prevState: ActionResult | undefined,
+  _prevState: ActionResult | undefined,
   formData: FormData
 ): Promise<ActionResult> {
   return createUserAction(formData);
 }
 
 export async function updateUserRoleActionState(
-  prevState: ActionResult | undefined,
+  _prevState: ActionResult | undefined,
   formData: FormData
 ): Promise<ActionResult> {
   return updateUserRoleAction(formData);
@@ -123,17 +162,16 @@ export async function setUserPasswordAction(
   formData: FormData
 ): Promise<ActionResult> {
   try {
-    const userId = String(formData.get("userId") || "");
-    const newPassword = String(formData.get("newPassword") || "");
-    const confirmPassword = String(formData.get("confirmPassword") || "");
-    if (!userId || !newPassword || !confirmPassword) {
-      logger.warn({ userId: !!userId, hasPassword: !!newPassword, hasConfirm: !!confirmPassword }, "Password reset failed: Missing required fields");
-      return { success: false, error: "Thiếu thông tin bắt buộc" };
+    const rawData = parseFormData(formData);
+    const parsed = SetPasswordSchema.safeParse(rawData);
+
+    if (!parsed.success) {
+      const firstError = parsed.error.errors[0]?.message ?? "Dữ liệu không hợp lệ";
+      logger.warn({ errors: parsed.error.errors }, "Password reset failed: Validation error");
+      return { success: false, error: firstError };
     }
-    if (newPassword !== confirmPassword) {
-      logger.warn({ userId }, "Password reset failed: Password mismatch");
-      return { success: false, error: "Mật khẩu không khớp" };
-    }
+
+    const { userId, newPassword } = parsed.data;
 
     // RBAC: only admin can set user password
     const hdrs = new Headers();
@@ -143,7 +181,7 @@ export async function setUserPasswordAction(
     const session = await auth.api.getSession({ headers: hdrs });
     const userContext = getUserContext(session);
 
-    if (!session?.user || session.user.role !== "admin") {
+    if (session?.user?.role !== "admin") {
       logger.warn({ ...userContext, targetUserId: userId }, "Password reset denied: Unauthorized access attempt");
       return { success: false, error: "Không có quyền thực hiện" };
     }
@@ -159,15 +197,15 @@ export async function setUserPasswordAction(
       headers: hdrs,
       body: { userId, newPassword },
     });
-    let body: any = null;
-    try { body = await res.json(); } catch {}
+    let body: { message?: string } | null = null;
+    try { body = await res.json() as { message?: string }; } catch { /* empty */ }
     if (!res.ok) {
-      const msg = body?.message || "Không thể đặt lại mật khẩu";
+      const msg = body?.message ?? "Không thể đặt lại mật khẩu";
       logger.error({ ...userContext, targetUserId: userId, targetEmail: targetUser?.email, errorMessage: msg }, "Password reset failed");
       return { success: false, error: msg };
     }
 
-    logger.info({ ...userContext, targetUserId: userId, targetEmail: targetUser?.email }, `User ${userContext.userName} reset password for ${targetUser?.name || targetUser?.email}`);
+    logger.info({ ...userContext, targetUserId: userId, targetEmail: targetUser?.email }, `User ${userContext.userName} reset password for ${targetUser?.name ?? targetUser?.email}`);
     revalidatePath("/admin/users");
     return { success: true, message: "Đã đổi mật khẩu người dùng" };
   } catch (e) {
@@ -177,7 +215,7 @@ export async function setUserPasswordAction(
 }
 
 export async function setUserPasswordActionState(
-  prevState: ActionResult | undefined,
+  _prevState: ActionResult | undefined,
   formData: FormData
 ): Promise<ActionResult> {
   return setUserPasswordAction(formData);
@@ -187,11 +225,17 @@ export async function deleteUserAction(
   formData: FormData
 ): Promise<ActionResult> {
   try {
-    const targetUserId = String(formData.get("userId") || "");
-    if (!targetUserId) {
-      logger.warn("User deletion failed: Missing userId");
-      return { success: false, error: "Thiếu thông tin người dùng" };
+    // Parse and validate with Zod
+    const rawData = parseFormData(formData);
+    const parsed = DeleteUserSchema.safeParse(rawData);
+
+    if (!parsed.success) {
+      const firstError = parsed.error.errors[0]?.message ?? "Dữ liệu không hợp lệ";
+      logger.warn({ errors: parsed.error.errors }, "User deletion failed: Validation error");
+      return { success: false, error: firstError };
     }
+
+    const { userId: targetUserId } = parsed.data;
 
     const hdrs = new Headers();
     const cs = await cookies();
@@ -200,7 +244,7 @@ export async function deleteUserAction(
     const session = await auth.api.getSession({ headers: hdrs });
     const userContext = getUserContext(session);
 
-    if (!session?.user || session.user.role !== "admin") {
+    if (session?.user?.role !== "admin") {
       logger.warn({ ...userContext, targetUserId }, "User deletion denied: Unauthorized access attempt");
       return { success: false, error: "Không có quyền thực hiện" };
     }
@@ -234,15 +278,15 @@ export async function deleteUserAction(
       headers: hdrs,
       body: { userId: targetUserId },
     });
-    let body: any = null;
-    try { body = await res.json(); } catch {}
+    let body: { message?: string } | null = null;
+    try { body = await res.json() as { message?: string }; } catch { /* empty */ }
     if (!res.ok) {
-      const msg = body?.message || "Xóa người dùng thất bại";
+      const msg = body?.message ?? "Xóa người dùng thất bại";
       logger.error({ ...userContext, targetUserId, targetEmail: targetUser?.email, errorMessage: msg }, "User deletion failed");
       return { success: false, error: msg };
     }
 
-    logger.info({ ...userContext, targetUserId, targetEmail: targetUser?.email }, `User ${userContext.userName} deleted user ${targetUser?.name || targetUser?.email} (${targetUser?.email})`);
+    logger.info({ ...userContext, targetUserId, targetEmail: targetUser?.email }, `User ${userContext.userName} deleted user ${targetUser?.name ?? targetUser?.email} (${targetUser?.email})`);
     revalidatePath("/admin/users");
     return { success: true, message: "Đã xóa người dùng" };
   } catch (e) {
@@ -252,7 +296,7 @@ export async function deleteUserAction(
 }
 
 export async function deleteUserActionState(
-  prevState: ActionResult | undefined,
+  _prevState: ActionResult | undefined,
   formData: FormData
 ): Promise<ActionResult> {
   return deleteUserAction(formData);
