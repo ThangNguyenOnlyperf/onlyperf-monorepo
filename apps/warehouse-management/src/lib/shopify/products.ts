@@ -152,7 +152,20 @@ export async function createShopifyProductFromWarehouse(
     };
   }
 
-  const existingProductGid = await findShopifyProductIdByBrandModel(
+  // For pack products, look up the base product's Shopify mapping first
+  // This ensures pack variants are added to the same Shopify product as the base
+  let existingProductGid: string | null = null;
+
+  if (product.isPackProduct && product.baseProductId) {
+    // Try to find the base product's Shopify product
+    const baseMapping = await findShopifyProductMapping(product.baseProductId, database);
+    if (baseMapping?.shopifyProductId) {
+      existingProductGid = baseMapping.shopifyProductId;
+    }
+  }
+
+  // If no base product mapping found (or not a pack product), search by brand/model
+  existingProductGid ??= await findShopifyProductIdByBrandModel(
     product.brandId,
     product.model,
     database
