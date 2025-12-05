@@ -21,10 +21,7 @@ export function isValidVietnamesePhone(phone: string): boolean {
   return VIETNAMESE_PHONE_REGEX.test(cleanPhone);
 }
 
-/**
- * Normalize Vietnamese phone to international format (+84...)
- * Converts: 0912345678 → +84912345678
- */
+
 export function normalizeVietnamesePhone(phone: string): string {
   if (!phone) {
     return phone;
@@ -42,7 +39,6 @@ export function normalizeVietnamesePhone(phone: string): string {
     return `+84${cleanPhone.slice(1)}`;
   }
 
-  // If doesn't start with +84 or 0, assume local and add +84
   return `+84${cleanPhone}`;
 }
 

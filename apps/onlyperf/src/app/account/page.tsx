@@ -1,6 +1,11 @@
 import { redirect } from "next/navigation";
-import { saveCustomerAddress } from "@/actions/addresses";
+import {
+  saveCustomerAddress,
+  updateCustomerAddressAction,
+  deleteCustomerAddressAction,
+} from "@/actions/addresses";
 import { getPendingCheckoutSessions } from "@/actions/checkout";
+import { updateProfileAction } from "@/actions/profile";
 import { getCustomerProducts } from "@/actions/products";
 import { AccountPageClient } from "@/components/account/AccountPageClient";
 import {
@@ -61,6 +66,9 @@ export default async function AccountPage({
       pendingSessions={pendingSessions}
       initialSection={params.section}
       saveAddress={saveCustomerAddress}
+      updateAddress={updateCustomerAddressAction}
+      deleteAddress={deleteCustomerAddressAction}
+      updateProfile={updateProfileAction}
     />
   );
 }

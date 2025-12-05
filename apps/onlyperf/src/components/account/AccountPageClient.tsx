@@ -46,7 +46,7 @@ interface AccountPageClientProps {
   saveAddress: (address: {
     firstName?: string | null;
     lastName?: string | null;
-    phone?: string | null;
+    phoneNumber?: string | null;
     address1: string | null;
     address2?: string | null;
     city: string | null;
@@ -54,6 +54,28 @@ interface AccountPageClientProps {
     country: string | null;
     zip: string | null;
     company?: string | null;
+  }) => Promise<{ success: boolean; error?: string }>;
+  updateAddress: (
+    addressId: string,
+    address: {
+      firstName?: string | null;
+      lastName?: string | null;
+      phoneNumber?: string | null;
+      address1: string | null;
+      address2?: string | null;
+      city: string | null;
+      province?: string | null;
+      country: string | null;
+      zip: string | null;
+      company?: string | null;
+    },
+  ) => Promise<{ success: boolean; error?: string }>;
+  deleteAddress: (
+    addressId: string,
+  ) => Promise<{ success: boolean; error?: string }>;
+  updateProfile: (input: {
+    firstName: string;
+    lastName: string;
   }) => Promise<{ success: boolean; error?: string }>;
 }
 
@@ -79,6 +101,9 @@ export function AccountPageClient({
   pendingSessions,
   initialSection = "profile",
   saveAddress,
+  updateAddress,
+  deleteAddress,
+  updateProfile,
 }: AccountPageClientProps) {
   const [activeSection, setActiveSection] = useState<Section>(
     (initialSection as Section) || "profile",
@@ -175,7 +200,7 @@ export function AccountPageClient({
           {/* Main Content Area */}
           <div className="lg:col-span-3">
             {activeSection === "profile" && (
-              <ProfileSection profile={profile} />
+              <ProfileSection profile={profile} updateProfile={updateProfile} />
             )}
             {activeSection === "products" && (
               <ProductsSection products={products} />
@@ -188,6 +213,8 @@ export function AccountPageClient({
               <AddressesSection
                 addresses={addresses}
                 saveAddress={saveAddress}
+                updateAddress={updateAddress}
+                deleteAddress={deleteAddress}
               />
             )}
           </div>

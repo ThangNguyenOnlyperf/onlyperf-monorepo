@@ -1,7 +1,11 @@
 "use server";
 
 import { readCustomerSessionFromCookies } from "@/lib/shopify/customer-account";
-import { createCustomerAddress as createCustomerAddressApi } from "@/lib/shopify/customer-account-api";
+import {
+  createCustomerAddress as createCustomerAddressApi,
+  updateCustomerAddress as updateCustomerAddressApi,
+  deleteCustomerAddress as deleteCustomerAddressApi,
+} from "@/lib/shopify/customer-account-api";
 
 type ShopifyAddress = {
   firstName?: string | null;
@@ -16,9 +20,6 @@ type ShopifyAddress = {
   company?: string | null;
 };
 
-/**
- * Clean address by removing null values and ensuring required fields
- */
 function cleanAddress(address: ShopifyAddress): {
   firstName?: string;
   lastName?: string;
@@ -45,10 +46,6 @@ function cleanAddress(address: ShopifyAddress): {
   };
 }
 
-/**
- * Server action wrapper for creating a customer address
- * Allows client components to save addresses to Shopify Customer Account
- */
 export async function saveCustomerAddress(
   address: ShopifyAddress,
   defaultAddress: boolean = false,
@@ -83,7 +80,84 @@ export async function saveCustomerAddress(
   } catch (error) {
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Failed to save address",
+      error: error instanceof Error ? error.message : "Không thể lưu địa chỉ",
+    };
+  }
+}
+
+export async function updateCustomerAddressAction(
+  addressId: string,
+  address: ShopifyAddress,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const session = await readCustomerSessionFromCookies();
+    if (!session) {
+      return {
+        success: false,
+        error: "Bạn cần đăng nhập để cập nhật địa chỉ",
+      };
+    }
+
+    const cleanedAddress = cleanAddress(address);
+
+    const result = await updateCustomerAddressApi({
+      session,
+      addressId,
+      address: cleanedAddress,
+    });
+
+    if (!result.ok || result.userErrors?.length) {
+      const errorMessage =
+        result.userErrors?.map((e) => e.message).join(", ") ||
+        "Không thể cập nhật địa chỉ";
+      return {
+        success: false,
+        error: errorMessage,
+      };
+    }
+
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "Đã xảy ra lỗi khi cập nhật",
+    };
+  }
+}
+
+export async function deleteCustomerAddressAction(
+  addressId: string,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const session = await readCustomerSessionFromCookies();
+    if (!session) {
+      return {
+        success: false,
+        error: "Bạn cần đăng nhập để xóa địa chỉ",
+      };
+    }
+
+    const result = await deleteCustomerAddressApi({
+      session,
+      addressId,
+    });
+
+    if (!result.ok || result.userErrors?.length) {
+      const errorMessage =
+        result.userErrors?.map((e) => e.message).join(", ") ||
+        "Không thể xóa địa chỉ";
+      return {
+        success: false,
+        error: errorMessage,
+      };
+    }
+
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Đã xảy ra lỗi khi xóa",
     };
   }
 }
