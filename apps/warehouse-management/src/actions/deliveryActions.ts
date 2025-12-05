@@ -4,30 +4,24 @@ import { nanoid } from "nanoid";
 import { db } from "~/server/db";
 import { deliveries, deliveryHistory, deliveryResolutions, orders, orderItems, shipmentItems } from "~/server/db/schema";
 import { eq, and, desc, inArray, sql } from "drizzle-orm";
-import { auth } from "~/lib/auth";
-import { headers } from 'next/headers';
 import type { ActionResult } from "./types";
-import { 
-  updateDeliveryStatusSchema, 
-  failureResolutionSchema, 
+import {
+  updateDeliveryStatusSchema,
+  failureResolutionSchema,
   createDeliverySchema,
   type UpdateDeliveryStatusData,
   type FailureResolutionData,
-  type CreateDeliveryData 
+  type CreateDeliveryData
 } from "~/components/deliveries/deliverySchema";
 import type { DeliveryWithOrder, DeliveryStats } from "~/components/deliveries/types";
 import { logger } from '~/lib/logger';
 import { queueShopifyFulfillmentSync } from '~/lib/shopify/fulfillment';
+import { requireOrgContext } from '~/lib/authorization';
 
 // Create a delivery record when order is shipped
 export async function createDeliveryRecord(data: CreateDeliveryData): Promise<ActionResult> {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-    if (!session?.user) {
-      return { success: false, message: "Unauthorized" };
-    }
+    const { organizationId, userId } = await requireOrgContext({ permissions: ['create:deliveries'] });
 
     const parsedData = createDeliverySchema.safeParse(data);
     if (!parsedData.success) {
@@ -35,11 +29,12 @@ export async function createDeliveryRecord(data: CreateDeliveryData): Promise<Ac
     }
 
     const deliveryId = nanoid();
-    
+
     await db.transaction(async (tx) => {
       // Create delivery record
       await tx.insert(deliveries).values({
         id: deliveryId,
+        organizationId,
         orderId: parsedData.data.orderId,
         shipperName: parsedData.data.shipperName,
         shipperPhone: parsedData.data.shipperPhone || null,
@@ -49,20 +44,24 @@ export async function createDeliveryRecord(data: CreateDeliveryData): Promise<Ac
         updatedAt: new Date(),
       });
 
-      // Update order delivery status
+      // Update order delivery status (must be in same org)
       await tx.update(orders)
-        .set({ 
+        .set({
           deliveryStatus: "waiting_for_delivery",
-          updatedAt: new Date() 
+          updatedAt: new Date()
         })
-        .where(eq(orders.id, parsedData.data.orderId));
+        .where(and(
+          eq(orders.id, parsedData.data.orderId),
+          eq(orders.organizationId, organizationId)
+        ));
 
       // Add to history
       await tx.insert(deliveryHistory).values({
         id: nanoid(),
+        organizationId,
         deliveryId,
         toStatus: "waiting_for_delivery",
-        changedBy: session.user.id,
+        changedBy: userId,
         createdAt: new Date(),
       });
     });
@@ -74,7 +73,10 @@ export async function createDeliveryRecord(data: CreateDeliveryData): Promise<Ac
         source: orders.source,
       })
       .from(orders)
-      .where(eq(orders.id, parsedData.data.orderId))
+      .where(and(
+        eq(orders.id, parsedData.data.orderId),
+        eq(orders.organizationId, organizationId)
+      ))
       .limit(1);
 
     if (order?.source === "shopify" && order?.shopifyOrderId) {
@@ -100,19 +102,12 @@ export async function createDeliveryRecord(data: CreateDeliveryData): Promise<Ac
 
 // Update delivery status (delivered or failed)
 export async function updateDeliveryStatus(
-  deliveryId: string, 
+  deliveryId: string,
   data: UpdateDeliveryStatusData
 ): Promise<ActionResult<DeliveryWithOrder>> {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-    logger.info({ deliveryId,user:session?.user.id, status: data.status }, "Starting updateDeliveryStatus");
-    if (!session?.user) {
-      logger.warn({ deliveryId }, "Unauthorized access attempt to updateDeliveryStatus");
-      return { success: false, message: "Unauthorized" };
-    }
-
+    const { organizationId, userId } = await requireOrgContext({ permissions: ['update:deliveries'] });
+    logger.info({ deliveryId, userId, status: data.status }, "Starting updateDeliveryStatus");
 
     const parsedData = updateDeliveryStatusSchema.safeParse(data);
     if (!parsedData.success) {
@@ -123,10 +118,13 @@ export async function updateDeliveryStatus(
       return { success: false, message: "Dữ liệu không hợp lệ" };
     }
 
-    // Get current delivery
+    // Get current delivery (must be in same org)
     const [currentDelivery] = await db.select()
       .from(deliveries)
-      .where(eq(deliveries.id, deliveryId))
+      .where(and(
+        eq(deliveries.id, deliveryId),
+        eq(deliveries.organizationId, organizationId)
+      ))
       .limit(1);
 
     if (!currentDelivery) {
@@ -143,24 +141,33 @@ export async function updateDeliveryStatus(
           failureReason: parsedData.data.failureReason || null,
           failureCategory: parsedData.data.failureCategory || null,
           notes: parsedData.data.notes || null,
-          confirmedBy: session.user.id,
+          confirmedBy: userId,
           updatedAt: new Date(),
         })
-        .where(eq(deliveries.id, deliveryId));
+        .where(and(
+          eq(deliveries.id, deliveryId),
+          eq(deliveries.organizationId, organizationId)
+        ));
 
       // Update order delivery status
       await tx.update(orders)
-        .set({ 
+        .set({
           deliveryStatus: parsedData.data.status,
-          updatedAt: new Date() 
+          updatedAt: new Date()
         })
-        .where(eq(orders.id, currentDelivery.orderId));
+        .where(and(
+          eq(orders.id, currentDelivery.orderId),
+          eq(orders.organizationId, organizationId)
+        ));
 
       // If delivered, update shipment items status to 'delivered'
       if (parsedData.data.status === 'delivered') {
         const items = await tx.select({ shipmentItemId: orderItems.shipmentItemId })
           .from(orderItems)
-          .where(eq(orderItems.orderId, currentDelivery.orderId));
+          .where(and(
+            eq(orderItems.orderId, currentDelivery.orderId),
+            eq(orderItems.organizationId, organizationId)
+          ));
 
         const shipmentItemIds = items
           .map(i => i.shipmentItemId)
@@ -181,11 +188,12 @@ export async function updateDeliveryStatus(
       // Add to history
       await tx.insert(deliveryHistory).values({
         id: nanoid(),
+        organizationId,
         deliveryId,
         fromStatus: currentDelivery.status,
         toStatus: parsedData.data.status,
         notes: parsedData.data.notes || null,
-        changedBy: session.user.id,
+        changedBy: userId,
         createdAt: new Date(),
       });
 
@@ -259,12 +267,7 @@ export async function createFailureResolution(
   data: FailureResolutionData
 ): Promise<ActionResult<DeliveryWithOrder>> {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-    if (!session?.user) {
-      return { success: false, message: "Unauthorized" };
-    }
+    const { organizationId, userId } = await requireOrgContext({ permissions: ['create:delivery-resolutions'] });
 
     const parsedData = failureResolutionSchema.safeParse(data);
     if (!parsedData.success) {
@@ -275,31 +278,33 @@ export async function createFailureResolution(
       // Create resolution record
       await tx.insert(deliveryResolutions).values({
         id: nanoid(),
+        organizationId,
         deliveryId,
         resolutionType: parsedData.data.resolutionType,
         resolutionStatus: "pending",
         targetStorageId: parsedData.data.targetStorageId || null,
         supplierReturnReason: parsedData.data.supplierReturnReason || null,
         scheduledDate: parsedData.data.scheduledDate || null,
-        processedBy: session.user.id,
+        processedBy: userId,
         notes: parsedData.data.notes || null,
         createdAt: new Date(),
         updatedAt: new Date(),
       });
 
       // Add to history
-      const resolutionTypeLabel = parsedData.data.resolutionType === 're_import' 
-        ? 'Nhập lại kho' 
-        : parsedData.data.resolutionType === 'return_to_supplier' 
-        ? 'Trả về nhà cung cấp' 
+      const resolutionTypeLabel = parsedData.data.resolutionType === 're_import'
+        ? 'Nhập lại kho'
+        : parsedData.data.resolutionType === 'return_to_supplier'
+        ? 'Trả về nhà cung cấp'
         : 'Giao lại';
-      
+
       await tx.insert(deliveryHistory).values({
         id: nanoid(),
+        organizationId,
         deliveryId,
         toStatus: `resolution_${parsedData.data.resolutionType}`,
         notes: `Tạo quy trình xử lý giao thất bại: ${resolutionTypeLabel}`,
-        changedBy: session.user.id,
+        changedBy: userId,
         createdAt: new Date(),
       });
 
@@ -332,16 +337,14 @@ export async function processResolution(
   status: 'in_progress' | 'completed'
 ): Promise<ActionResult> {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-    if (!session?.user) {
-      return { success: false, message: "Unauthorized" };
-    }
+    const { organizationId, userId } = await requireOrgContext({ permissions: ['update:delivery-resolutions'] });
 
     const [resolution] = await db.select()
       .from(deliveryResolutions)
-      .where(eq(deliveryResolutions.id, resolutionId))
+      .where(and(
+        eq(deliveryResolutions.id, resolutionId),
+        eq(deliveryResolutions.organizationId, organizationId)
+      ))
       .limit(1);
 
     if (!resolution) {
@@ -356,7 +359,10 @@ export async function processResolution(
           completedAt: status === 'completed' ? new Date() : null,
           updatedAt: new Date(),
         })
-        .where(eq(deliveryResolutions.id, resolutionId));
+        .where(and(
+          eq(deliveryResolutions.id, resolutionId),
+          eq(deliveryResolutions.organizationId, organizationId)
+        ));
 
       // Handle completion based on resolution type
       if (status === 'completed') {
@@ -402,27 +408,29 @@ export async function processResolution(
           // Add history entry for status change
           await tx.insert(deliveryHistory).values({
             id: nanoid(),
+            organizationId,
             deliveryId: resolution.deliveryId,
             fromStatus: 'failed',
             toStatus: 'waiting_for_delivery',
             notes: 'Đơn hàng được giao lại sau khi xử lý thất bại',
-            changedBy: session.user.id,
+            changedBy: userId,
             createdAt: new Date(),
           });
         }
       }
 
       // Add resolution status change to history
-      const resolutionStatusNote = status === 'completed' 
+      const resolutionStatusNote = status === 'completed'
         ? `Hoàn thành quy trình xử lý: ${resolution.resolutionType === 're_import' ? 'Nhập lại kho' : resolution.resolutionType === 'return_to_supplier' ? 'Trả về nhà cung cấp' : 'Giao lại'}`
         : `Bắt đầu quy trình xử lý: ${resolution.resolutionType === 're_import' ? 'Nhập lại kho' : resolution.resolutionType === 'return_to_supplier' ? 'Trả về nhà cung cấp' : 'Giao lại'}`;
-      
+
       await tx.insert(deliveryHistory).values({
         id: nanoid(),
+        organizationId,
         deliveryId: resolution.deliveryId,
         toStatus: `resolution_${status}`,
         notes: resolutionStatusNote,
-        changedBy: session.user.id,
+        changedBy: userId,
         createdAt: new Date(),
       });
     });
@@ -445,12 +453,7 @@ export async function processResolution(
 // Get delivery history
 export async function getDeliveryHistory(deliveryId: string): Promise<ActionResult<any[]>> {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-    if (!session) {
-      return { success: false, message: "Unauthorized" };
-    }
+    const { organizationId } = await requireOrgContext();
 
     const history = await db.select({
       id: deliveryHistory.id,
@@ -462,7 +465,10 @@ export async function getDeliveryHistory(deliveryId: string): Promise<ActionResu
       createdAt: deliveryHistory.createdAt,
     })
     .from(deliveryHistory)
-    .where(eq(deliveryHistory.deliveryId, deliveryId))
+    .where(and(
+      eq(deliveryHistory.deliveryId, deliveryId),
+      eq(deliveryHistory.organizationId, organizationId)
+    ))
     .orderBy(desc(deliveryHistory.createdAt));
 
     return { 
@@ -482,6 +488,8 @@ export async function getDeliveryHistory(deliveryId: string): Promise<ActionResu
 // Get delivery statistics
 export async function getDeliveryStats(): Promise<ActionResult<DeliveryStats>> {
   try {
+    const { organizationId } = await requireOrgContext();
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todayISO = today.toISOString();
@@ -494,7 +502,8 @@ export async function getDeliveryStats(): Promise<ActionResult<DeliveryStats>> {
       waiting: sql<number>`count(case when ${deliveries.status} = 'waiting_for_delivery' then 1 end)::int`,
       cancelled: sql<number>`count(case when ${deliveries.status} = 'cancelled' then 1 end)::int`,
     })
-    .from(deliveries);
+    .from(deliveries)
+    .where(eq(deliveries.organizationId, organizationId));
 
     // Get resolution stats
     const [resolutionStats] = await db.select({
@@ -505,7 +514,8 @@ export async function getDeliveryStats(): Promise<ActionResult<DeliveryStats>> {
       returning: sql<number>`count(case when ${deliveryResolutions.resolutionType} = 'return_to_supplier' and ${deliveryResolutions.resolutionStatus} != 'completed' then 1 end)::int`,
       retrying: sql<number>`count(case when ${deliveryResolutions.resolutionType} = 'retry_delivery' and ${deliveryResolutions.resolutionStatus} != 'completed' then 1 end)::int`,
     })
-    .from(deliveryResolutions);
+    .from(deliveryResolutions)
+    .where(eq(deliveryResolutions.organizationId, organizationId));
 
     // Get value stats
     const valueStats = await db.select({
@@ -514,6 +524,7 @@ export async function getDeliveryStats(): Promise<ActionResult<DeliveryStats>> {
     })
     .from(deliveries)
     .innerJoin(orders, eq(deliveries.orderId, orders.id))
+    .where(eq(deliveries.organizationId, organizationId))
     .groupBy(deliveries.status);
 
     const deliveredValue = valueStats.find(v => v.status === 'delivered')?.totalValue || 0;
@@ -597,25 +608,23 @@ async function getDeliveryWithOrder(tx: any, deliveryId: string): Promise<Delive
 
 // Mark order as shipped and create delivery record
 export async function markOrderAsShipped(
-  orderId: string, 
-  shipperInfo: { 
-    shipperName: string; 
-    shipperPhone?: string; 
-    trackingNumber?: string 
+  orderId: string,
+  shipperInfo: {
+    shipperName: string;
+    shipperPhone?: string;
+    trackingNumber?: string
   }
 ): Promise<ActionResult> {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-    if (!session?.user) {
-      return { success: false, message: "Unauthorized" };
-    }
+    const { organizationId, userId } = await requireOrgContext({ permissions: ['update:orders'] });
 
-    // Check if delivery already exists
+    // Check if delivery already exists for this order in this org
     const existingDelivery = await db.select()
       .from(deliveries)
-      .where(eq(deliveries.orderId, orderId))
+      .where(and(
+        eq(deliveries.orderId, orderId),
+        eq(deliveries.organizationId, organizationId)
+      ))
       .limit(1);
 
     if (existingDelivery.length > 0) {
@@ -631,12 +640,18 @@ export async function markOrderAsShipped(
           deliveryStatus: "waiting_for_delivery",
           updatedAt: new Date()
         })
-        .where(eq(orders.id, orderId));
+        .where(and(
+          eq(orders.id, orderId),
+          eq(orders.organizationId, organizationId)
+        ));
 
       // Update shipment items to shipped
       const items = await tx.select({ shipmentItemId: orderItems.shipmentItemId })
         .from(orderItems)
-        .where(eq(orderItems.orderId, orderId));
+        .where(and(
+          eq(orderItems.orderId, orderId),
+          eq(orderItems.organizationId, organizationId)
+        ));
 
       const shipmentItemIds = items
         .map(i => i.shipmentItemId)
@@ -651,6 +666,7 @@ export async function markOrderAsShipped(
       // Create delivery record
       await tx.insert(deliveries).values({
         id: deliveryId,
+        organizationId,
         orderId,
         shipperName: shipperInfo.shipperName,
         shipperPhone: shipperInfo.shipperPhone || null,
@@ -663,10 +679,11 @@ export async function markOrderAsShipped(
       // Add to history
       await tx.insert(deliveryHistory).values({
         id: nanoid(),
+        organizationId,
         deliveryId,
         toStatus: "waiting_for_delivery",
         notes: "Đơn hàng đã được giao cho shipper",
-        changedBy: session.user.id,
+        changedBy: userId,
         createdAt: new Date(),
       });
     });
@@ -678,7 +695,10 @@ export async function markOrderAsShipped(
         source: orders.source,
       })
       .from(orders)
-      .where(eq(orders.id, orderId))
+      .where(and(
+        eq(orders.id, orderId),
+        eq(orders.organizationId, organizationId)
+      ))
       .limit(1);
 
     if (order?.source === "shopify" && order?.shopifyOrderId) {
@@ -710,12 +730,14 @@ export async function getDeliveries(params: {
   search?: string;
 }): Promise<ActionResult<{ deliveries: DeliveryWithOrder[]; total: number; stats: DeliveryStats }>> {
   try {
+    const { organizationId } = await requireOrgContext();
+
     const page = params.page || 1;
     const pageSize = params.pageSize || 10;
     const offset = (page - 1) * pageSize;
 
-    // Build query conditions
-    const conditions = [];
+    // Build query conditions - always filter by organization
+    const conditions: ReturnType<typeof eq>[] = [eq(deliveries.organizationId, organizationId)];
     if (params.status && params.status !== 'all') {
       conditions.push(eq(deliveries.status, params.status));
     }
@@ -753,7 +775,7 @@ export async function getDeliveries(params: {
     })
     .from(deliveries)
     .innerJoin(orders, eq(deliveries.orderId, orders.id))
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .where(and(...conditions))
     .orderBy(desc(deliveries.createdAt))
     .limit(pageSize)
     .offset(offset);
@@ -764,7 +786,7 @@ export async function getDeliveries(params: {
     })
     .from(deliveries)
     .innerJoin(orders, eq(deliveries.orderId, orders.id))
-    .where(conditions.length > 0 ? and(...conditions) : undefined);
+    .where(and(...conditions));
 
     const total = countResult[0]?.total || 0;
 

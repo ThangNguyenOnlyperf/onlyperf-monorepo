@@ -4,7 +4,7 @@ import { db } from '~/server/db';
 import { customers, orders } from '~/server/db/schema';
 import { eq, desc, sql, and, gte, lte, or, ilike } from 'drizzle-orm';
 import { logger } from '~/lib/logger';
-import { requireAuth } from '~/lib/authorization';
+import { requireOrgContext } from '~/lib/authorization';
 
 interface ActionResult<T = unknown> {
   success: boolean;
@@ -50,7 +50,7 @@ export async function getCustomersList(
   } = {}
 ): Promise<ActionResult<{ customers: CustomerDetail[]; total: number }>> {
   try {
-    await requireAuth();
+    const { organizationId } = await requireOrgContext();
 
     const {
       limit = 20,
@@ -63,40 +63,35 @@ export async function getCustomersList(
     } = options;
 
     // Build where conditions for customers
-    const customerConditions = [];
-    
+    const customerConditions = [eq(customers.organizationId, organizationId)];
+
     if (search) {
       customerConditions.push(
         or(
           ilike(customers.name, `%${search}%`),
           ilike(customers.phone, `%${search}%`),
           ilike(customers.address, `%${search}%`)
-        )
+        )!
       );
     }
-    
+
     if (startDate) {
       customerConditions.push(gte(customers.createdAt, startDate));
     }
-    
+
     if (endDate) {
       const endOfDay = new Date(endDate);
       endOfDay.setHours(23, 59, 59, 999);
       customerConditions.push(lte(customers.createdAt, endOfDay));
     }
 
-    const whereClause = customerConditions.length > 0 ? and(...customerConditions) : undefined;
+    const whereClause = and(...customerConditions);
 
     // Get total count of customers
-    const countQuery = db
+    const totalResult = await db
       .select({ count: sql<number>`count(*)::int` })
-      .from(customers);
-    
-    if (whereClause) {
-      countQuery.where(whereClause);
-    }
-    
-    const totalResult = await countQuery;
+      .from(customers)
+      .where(whereClause);
     const total = totalResult[0]?.count ?? 0;
 
     let customersQuery = db
@@ -107,10 +102,10 @@ export async function getCustomersList(
         lastOrderDate: sql<Date | null>`max(${orders.createdAt})`,
         customerType: sql<'b2b' | 'b2c'>`
           COALESCE(
-            (SELECT customer_type 
-             FROM orders o2 
-             WHERE o2.customer_id = ${customers.id} 
-             ORDER BY o2.created_at DESC 
+            (SELECT customer_type
+             FROM orders o2
+             WHERE o2.customer_id = ${customers.id}
+             ORDER BY o2.created_at DESC
              LIMIT 1),
             'b2c'
           )
@@ -118,12 +113,9 @@ export async function getCustomersList(
       })
       .from(customers)
       .leftJoin(orders, eq(customers.id, orders.customerId))
+      .where(whereClause)
       .groupBy(customers.id)
       .$dynamic();
-    
-    if (whereClause) {
-      customersQuery = customersQuery.where(whereClause);
-    }
 
     // Apply sorting
     if (sortBy === 'name') {
@@ -132,7 +124,7 @@ export async function getCustomersList(
       );
     } else if (sortBy === 'totalSpent') {
       customersQuery = customersQuery.orderBy(
-        sortOrder === 'desc' 
+        sortOrder === 'desc'
           ? desc(sql`coalesce(sum(${orders.totalAmount}), 0)`)
           : sql`coalesce(sum(${orders.totalAmount}), 0)`
       );
@@ -147,7 +139,7 @@ export async function getCustomersList(
         sortOrder === 'desc' ? desc(customers.createdAt) : customers.createdAt
       );
     }
-    
+
     const customersData = await customersQuery
       .limit(limit)
       .offset(offset);
@@ -174,18 +166,10 @@ export async function getCustomersList(
       },
     };
   } catch (error) {
-    if (error instanceof Error && error.message.includes('quyền')) {
-      logger.warn({ error: error.message }, 'Không có quyền xem danh sách khách hàng');
-      return {
-        success: false,
-        message: error.message,
-      };
-    }
-
     logger.error({ error }, 'Error fetching customers:');
     return {
       success: false,
-      message: 'Lỗi khi tải danh sách khách hàng',
+      message: error instanceof Error ? error.message : 'Lỗi khi tải danh sách khách hàng',
     };
   }
 }
@@ -193,12 +177,13 @@ export async function getCustomersList(
 // Get customer statistics
 export async function getCustomerStats(): Promise<ActionResult<CustomerStats>> {
   try {
-    await requireAuth();
+    const { organizationId } = await requireOrgContext();
 
     // Get total customers
     const totalCustomersResult = await db
       .select({ count: sql<number>`count(*)::int` })
-      .from(customers);
+      .from(customers)
+      .where(eq(customers.organizationId, organizationId));
     const totalCustomers = totalCustomersResult[0]?.count ?? 0;
 
     // Get new customers this month
@@ -209,7 +194,10 @@ export async function getCustomerStats(): Promise<ActionResult<CustomerStats>> {
     const newCustomersResult = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(customers)
-      .where(gte(customers.createdAt, startOfMonth));
+      .where(and(
+        eq(customers.organizationId, organizationId),
+        gte(customers.createdAt, startOfMonth)
+      ));
     const newCustomersThisMonth = newCustomersResult[0]?.count ?? 0;
 
     // Get top spenders
@@ -220,6 +208,7 @@ export async function getCustomerStats(): Promise<ActionResult<CustomerStats>> {
       })
       .from(customers)
       .leftJoin(orders, eq(customers.id, orders.customerId))
+      .where(eq(customers.organizationId, organizationId))
       .groupBy(customers.id)
       .orderBy(desc(sql`coalesce(sum(${orders.totalAmount}), 0)`))
       .limit(5);
@@ -236,7 +225,8 @@ export async function getCustomerStats(): Promise<ActionResult<CustomerStats>> {
       .select({
         avgValue: sql<number>`coalesce(avg(${orders.totalAmount}), 0)::int`,
       })
-      .from(orders);
+      .from(orders)
+      .where(eq(orders.organizationId, organizationId));
     const averageOrderValue = avgOrderResult[0]?.avgValue ?? 0;
 
     return {
@@ -250,18 +240,10 @@ export async function getCustomerStats(): Promise<ActionResult<CustomerStats>> {
       },
     };
   } catch (error) {
-    if (error instanceof Error && error.message.includes('quyền')) {
-      logger.warn({ error: error.message }, 'Không có quyền xem thống kê khách hàng');
-      return {
-        success: false,
-        message: error.message,
-      };
-    }
-
     logger.error({ error }, 'Error fetching customer stats:');
     return {
       success: false,
-      message: 'Lỗi khi tải thống kê khách hàng',
+      message: error instanceof Error ? error.message : 'Lỗi khi tải thống kê khách hàng',
     };
   }
 }
@@ -286,7 +268,7 @@ interface OrderRecord {
 // Get customer by ID with order history
 export async function getCustomerById(customerId: string): Promise<ActionResult<CustomerDetail & { orders: OrderRecord[] }>> {
   try {
-    await requireAuth();
+    const { organizationId } = await requireOrgContext();
 
     // Get customer with statistics
     const customerData = await db
@@ -297,10 +279,10 @@ export async function getCustomerById(customerId: string): Promise<ActionResult<
         lastOrderDate: sql<Date | null>`max(${orders.createdAt})`,
         customerType: sql<'b2b' | 'b2c'>`
           COALESCE(
-            (SELECT customer_type 
-             FROM orders o2 
-             WHERE o2.customer_id = ${customers.id} 
-             ORDER BY o2.created_at DESC 
+            (SELECT customer_type
+             FROM orders o2
+             WHERE o2.customer_id = ${customers.id}
+             ORDER BY o2.created_at DESC
              LIMIT 1),
             'b2c'
           )
@@ -308,7 +290,10 @@ export async function getCustomerById(customerId: string): Promise<ActionResult<
       })
       .from(customers)
       .leftJoin(orders, eq(customers.id, orders.customerId))
-      .where(eq(customers.id, customerId))
+      .where(and(
+        eq(customers.id, customerId),
+        eq(customers.organizationId, organizationId)
+      ))
       .groupBy(customers.id);
 
     if (customerData.length === 0 || !customerData[0]) {
@@ -324,7 +309,10 @@ export async function getCustomerById(customerId: string): Promise<ActionResult<
     const customerOrders = await db
       .select()
       .from(orders)
-      .where(eq(orders.customerId, customerId))
+      .where(and(
+        eq(orders.customerId, customerId),
+        eq(orders.organizationId, organizationId)
+      ))
       .orderBy(desc(orders.createdAt))
       .limit(10);
 
@@ -346,18 +334,10 @@ export async function getCustomerById(customerId: string): Promise<ActionResult<
       },
     };
   } catch (error) {
-    if (error instanceof Error && error.message.includes('quyền')) {
-      logger.warn({ error: error.message, customerId }, 'Không có quyền xem thông tin khách hàng');
-      return {
-        success: false,
-        message: error.message,
-      };
-    }
-
     logger.error({ error }, 'Error fetching customer:');
     return {
       success: false,
-      message: 'Lỗi khi tải thông tin khách hàng',
+      message: error instanceof Error ? error.message : 'Lỗi khi tải thông tin khách hàng',
     };
   }
 }

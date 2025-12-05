@@ -16,14 +16,13 @@ import { revalidatePath } from 'next/cache';
 import { createShopifyProductFromWarehouse } from '~/lib/shopify/products';
 import type { ShopifyProductSyncResult } from '~/lib/shopify/types';
 import { logger, getUserContext } from '~/lib/logger';
-import { auth } from '~/lib/auth';
-import { headers } from 'next/headers';
-import { requireAuth } from '~/lib/authorization';
+import { requireOrgContext } from '~/lib/authorization';
 
 export async function getProductsWithStockAction(
   paginationParams?: PaginationParams
 ): Promise<ActionResult<PaginatedResult<Product>>> {
   try {
+    const { organizationId } = await requireOrgContext();
     const { page = 1, pageSize = 100, sortBy = 'updatedAt', sortOrder = 'desc' } = paginationParams || {};
     const offset = (page - 1) * pageSize;
 
@@ -67,12 +66,14 @@ export async function getProductsWithStockAction(
       .leftJoin(colors, eq(colors.id, products.colorId))
       .leftJoin(shipmentItems, eq(shipmentItems.productId, products.id))
       .leftJoin(shopifyProducts, eq(shopifyProducts.productId, products.id))
+      .where(eq(products.organizationId, organizationId))
       .groupBy(products.id, colors.name, colors.hex);
 
     // Get total count
     const countResult = await db
       .select({ count: sql<number>`count(DISTINCT ${products.id})::int` })
-      .from(products);
+      .from(products)
+      .where(eq(products.organizationId, organizationId));
     const totalItems = countResult[0]?.count || 0;
 
     // Apply sorting and pagination
@@ -120,16 +121,19 @@ export async function getProductsWithStockAction(
 export async function createProductAction(data: ProductFormData): Promise<ActionResult<Product>> {
   try {
     // Require authorization to create products (admin or warehouse staff)
-    const session = await requireAuth({ permissions: ['create:products'] });
+    const { organizationId, userId, session } = await requireOrgContext({ permissions: ['create:products'] });
     const userContext = getUserContext(session);
 
     const validatedData = ProductSchema.parse(data);
 
-    // Get brand name
+    // Get brand name (must be in same org)
     const [brandInfo] = await db
       .select({ name: brands.name })
       .from(brands)
-      .where(eq(brands.id, validatedData.brandId))
+      .where(and(
+        eq(brands.id, validatedData.brandId),
+        eq(brands.organizationId, organizationId)
+      ))
       .limit(1);
 
     if (!brandInfo) {
@@ -139,11 +143,14 @@ export async function createProductAction(data: ProductFormData): Promise<Action
       };
     }
 
-    // Look up color info for display in messages
+    // Look up color info for display in messages (must be in same org)
     const [colorInfo] = await db
       .select({ name: colors.name, hex: colors.hex })
       .from(colors)
-      .where(eq(colors.id, validatedData.colorId))
+      .where(and(
+        eq(colors.id, validatedData.colorId),
+        eq(colors.organizationId, organizationId)
+      ))
       .limit(1);
 
     if (!colorInfo) {
@@ -153,12 +160,13 @@ export async function createProductAction(data: ProductFormData): Promise<Action
       };
     }
 
-    // Check if product with same brand, model and color exists
+    // Check if product with same brand, model and color exists in this org
     const [existingProduct] = await db
       .select()
       .from(products)
       .where(
         and(
+          eq(products.organizationId, organizationId),
           eq(products.brandId, validatedData.brandId),
           eq(products.model, validatedData.model),
           eq(products.colorId, validatedData.colorId)
@@ -177,12 +185,13 @@ export async function createProductAction(data: ProductFormData): Promise<Action
     const productId = `prd_${Date.now()}`;
     const productName = `${brandInfo.name} ${validatedData.model}`;
 
-    logger.info({ ...userContext, productName, brand: brandInfo.name, model: validatedData.model, colorId: validatedData.colorId, colorName: colorInfo.name }, `User ${userContext.userName} creating product: ${productName}`);
+    logger.info({ ...userContext, organizationId, productName, brand: brandInfo.name, model: validatedData.model, colorId: validatedData.colorId, colorName: colorInfo.name }, `User ${userContext.userName} creating product: ${productName}`);
 
     const [newProduct] = await db
       .insert(products)
       .values({
         id: productId,
+        organizationId,
         name: productName,
         brand: brandInfo.name,
         brandId: validatedData.brandId,
@@ -268,6 +277,8 @@ export async function createProductAction(data: ProductFormData): Promise<Action
 
 export async function getProductsForSelectionAction(): Promise<ActionResult<Product[]>> {
   try {
+    const { organizationId } = await requireOrgContext();
+
     const productsWithBrands = await db
       .select({
         id: products.id,
@@ -299,6 +310,7 @@ export async function getProductsForSelectionAction(): Promise<ActionResult<Prod
       .from(products)
       .leftJoin(brands, eq(products.brandId, brands.id))
       .leftJoin(colors, eq(colors.id, products.colorId))
+      .where(eq(products.organizationId, organizationId))
       .orderBy(asc(products.name));
 
     return {
@@ -313,13 +325,14 @@ export async function getProductsForSelectionAction(): Promise<ActionResult<Prod
     logger.error({ error }, 'Error fetching products for selection:');
     return {
       success: false,
-      message: 'Không thể lấy danh sách sản phẩm',
+      message: error instanceof Error ? error.message : 'Không thể lấy danh sách sản phẩm',
     };
   }
 }
 
 export async function searchProductsAction(query: string): Promise<ActionResult<Product[]>> {
   try {
+    const { organizationId } = await requireOrgContext();
     const searchPattern = `%${query}%`;
 
     const matchingProducts = await db
@@ -354,10 +367,13 @@ export async function searchProductsAction(query: string): Promise<ActionResult<
       .leftJoin(brands, eq(products.brandId, brands.id))
       .leftJoin(colors, eq(colors.id, products.colorId))
       .where(
-        or(
-          like(products.name, searchPattern),
-          like(products.model, searchPattern),
-          like(products.brand, searchPattern)
+        and(
+          eq(products.organizationId, organizationId),
+          or(
+            like(products.name, searchPattern),
+            like(products.model, searchPattern),
+            like(products.brand, searchPattern)
+          )
         )
       )
       .orderBy(asc(products.name))
@@ -375,16 +391,19 @@ export async function searchProductsAction(query: string): Promise<ActionResult<
     logger.error({ error }, 'Error searching products:');
     return {
       success: false,
-      message: 'Không thể tìm kiếm sản phẩm',
+      message: error instanceof Error ? error.message : 'Không thể tìm kiếm sản phẩm',
     };
   }
 }
 
 export async function getProductMetricsAction(): Promise<ActionResult<ProductMetrics>> {
   try {
+    const { organizationId } = await requireOrgContext();
+
     const [productCount] = await db
       .select({ count: sql<number>`COUNT(*)::int` })
-      .from(products);
+      .from(products)
+      .where(eq(products.organizationId, organizationId));
 
     const [itemStats] = await db
       .select({
@@ -392,7 +411,8 @@ export async function getProductMetricsAction(): Promise<ActionResult<ProductMet
         availableItems: sql<number>`COALESCE(SUM(CASE WHEN ${shipmentItems.status} = 'received' THEN ${shipmentItems.quantity} ELSE 0 END), 0)::int`,
         soldItems: sql<number>`COALESCE(SUM(CASE WHEN ${shipmentItems.status} = 'sold' THEN ${shipmentItems.quantity} ELSE 0 END), 0)::int`,
       })
-      .from(shipmentItems);
+      .from(shipmentItems)
+      .where(eq(shipmentItems.organizationId, organizationId));
 
     const metrics: ProductMetrics = {
       totalProducts: productCount?.count || 0,
@@ -410,7 +430,7 @@ export async function getProductMetricsAction(): Promise<ActionResult<ProductMet
     logger.error({ error }, 'Error fetching product metrics:');
     return {
       success: false,
-      message: 'Lỗi khi lấy thống kê sản phẩm',
+      message: error instanceof Error ? error.message : 'Lỗi khi lấy thống kê sản phẩm',
     };
   }
 }
@@ -420,13 +440,14 @@ export async function syncProductWithShopifyAction(
 ): Promise<ActionResult<{ sync: ShopifyProductSyncResult }>> {
   try {
     // Require authorization for Shopify sync (admin or warehouse staff)
-    const session = await requireAuth({ permissions: ['create:products', 'update:products'] });
-    logger.info({ userId: session.user.id, userEmail: session.user.email, productId }, 'Đang đồng bộ sản phẩm với Shopify');
+    const { organizationId, userId } = await requireOrgContext({ permissions: ['create:products', 'update:products'] });
+    logger.info({ userId, organizationId, productId }, 'Đang đồng bộ sản phẩm với Shopify');
 
-    // Get product with color info in a single query
+    // Get product with color info in a single query (must be in same org)
     const [productWithColor] = await db
       .select({
         id: products.id,
+        organizationId: products.organizationId,
         name: products.name,
         brand: products.brand,
         brandId: products.brandId,
@@ -453,7 +474,10 @@ export async function syncProductWithShopifyAction(
       })
       .from(products)
       .leftJoin(colors, eq(colors.id, products.colorId))
-      .where(eq(products.id, productId))
+      .where(and(
+        eq(products.id, productId),
+        eq(products.organizationId, organizationId)
+      ))
       .limit(1);
 
     if (!productWithColor) {
@@ -478,21 +502,12 @@ export async function syncProductWithShopifyAction(
       data: { sync: syncResult },
     };
   } catch (error) {
-    // Handle authorization errors
-    if (error instanceof Error && error.message.includes('quyền')) {
-      logger.warn({ error: error.message, productId }, 'Không có quyền đồng bộ sản phẩm');
-      return {
-        success: false,
-        message: error.message,
-      };
-    }
-
     logger.error({ error }, 'Shopify product sync failed:');
     const errorMessage = error instanceof Error ? error.message : 'Lỗi không xác định';
 
     return {
       success: false,
-      message: 'Không thể đồng bộ sản phẩm với Shopify',
+      message: errorMessage,
       error: errorMessage,
     };
   }

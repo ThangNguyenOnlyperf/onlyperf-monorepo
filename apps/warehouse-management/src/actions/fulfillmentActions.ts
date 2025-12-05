@@ -5,6 +5,7 @@ import { orders, orderItems, shipmentItems, customers, products, colors } from "
 import { eq, and, isNull, inArray } from "drizzle-orm";
 import type { ActionResult } from "./types";
 import { logger } from "~/lib/logger";
+import { requireOrgContext } from "~/lib/authorization";
 
 // ============================================================================
 // TYPES
@@ -74,6 +75,8 @@ export interface ScanResult {
  */
 export async function getPendingFulfillmentCountAction(): Promise<ActionResult<PendingFulfillmentCount>> {
   try {
+    const { organizationId } = await requireOrgContext();
+
     const pendingOrders = await db
       .select({
         orderId: orders.id,
@@ -83,6 +86,7 @@ export async function getPendingFulfillmentCountAction(): Promise<ActionResult<P
       .from(orders)
       .where(
         and(
+          eq(orders.organizationId, organizationId),
           eq(orders.source, "shopify"),
           eq(orders.fulfillmentStatus, "pending")
         )
@@ -113,6 +117,8 @@ export async function getPendingFulfillmentCountAction(): Promise<ActionResult<P
  */
 export async function getPendingShopifyOrdersAction(): Promise<ActionResult<PendingOrder[]>> {
   try {
+    const { organizationId } = await requireOrgContext();
+
     // Get pending orders
     const pendingOrders = await db
       .select({
@@ -128,6 +134,7 @@ export async function getPendingShopifyOrdersAction(): Promise<ActionResult<Pend
       .leftJoin(customers, eq(orders.customerId, customers.id))
       .where(
         and(
+          eq(orders.organizationId, organizationId),
           eq(orders.source, "shopify"),
           eq(orders.fulfillmentStatus, "pending")
         )
@@ -223,7 +230,9 @@ export async function getOrderFulfillmentDetailsAction(
   orderId: string
 ): Promise<ActionResult<OrderFulfillmentDetails>> {
   try {
-    // Get order info
+    const { organizationId } = await requireOrgContext();
+
+    // Get order info (must be in same org)
     const orderInfo = await db
       .select({
         orderId: orders.id,
@@ -236,7 +245,10 @@ export async function getOrderFulfillmentDetailsAction(
       })
       .from(orders)
       .leftJoin(customers, eq(orders.customerId, customers.id))
-      .where(eq(orders.id, orderId))
+      .where(and(
+        eq(orders.id, orderId),
+        eq(orders.organizationId, organizationId)
+      ))
       .limit(1);
 
     if (orderInfo.length === 0) {
@@ -349,6 +361,8 @@ export async function scanAndFulfillItemAction(
   qrCode: string
 ): Promise<ActionResult<ScanResult>> {
   try {
+    const { organizationId } = await requireOrgContext();
+
     // Extract product code from QR if it's a URL
     let productCode = qrCode;
     if (qrCode.includes("/p/")) {
@@ -356,7 +370,7 @@ export async function scanAndFulfillItemAction(
       productCode = parts[parts.length - 1] ?? qrCode;
     }
 
-    // Find the shipment item by QR code
+    // Find the shipment item by QR code (must be in same org)
     const scannedItem = await db
       .select({
         shipmentItemId: shipmentItems.id,
@@ -367,7 +381,10 @@ export async function scanAndFulfillItemAction(
       })
       .from(shipmentItems)
       .leftJoin(products, eq(shipmentItems.productId, products.id))
-      .where(eq(shipmentItems.qrCode, productCode))
+      .where(and(
+        eq(shipmentItems.qrCode, productCode),
+        eq(shipmentItems.organizationId, organizationId)
+      ))
       .limit(1);
 
     if (scannedItem.length === 0) {
@@ -395,7 +412,7 @@ export async function scanAndFulfillItemAction(
       };
     }
 
-    // Find pending order item matching this product
+    // Find pending order item matching this product (must be in same org)
     const pendingOrderItem = await db
       .select({
         id: orderItems.id,
@@ -405,6 +422,7 @@ export async function scanAndFulfillItemAction(
       .from(orderItems)
       .where(
         and(
+          eq(orderItems.organizationId, organizationId),
           eq(orderItems.orderId, orderId),
           eq(orderItems.productId, item.productId),
           eq(orderItems.fulfillmentStatus, "pending"),
@@ -455,6 +473,7 @@ export async function scanAndFulfillItemAction(
       .from(orderItems)
       .where(
         and(
+          eq(orderItems.organizationId, organizationId),
           eq(orderItems.orderId, orderId),
           eq(orderItems.fulfillmentStatus, "pending")
         )
@@ -470,7 +489,10 @@ export async function scanAndFulfillItemAction(
           fulfillmentStatus: "fulfilled",
           updatedAt: new Date(),
         })
-        .where(eq(orders.id, orderId));
+        .where(and(
+          eq(orders.id, orderId),
+          eq(orders.organizationId, organizationId)
+        ));
     }
 
     return {

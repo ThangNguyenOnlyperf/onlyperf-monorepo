@@ -42,6 +42,7 @@ export async function findShopifyProductIdByBrandModel(
 
 export interface ShopifyProductMappingUpsert {
   productId: string;
+  organizationId: string;
   shopifyProductId: string;
   shopifyVariantId: string;
   shopifyInventoryItemId?: string | null;
@@ -67,6 +68,7 @@ export async function upsertShopifyProductMapping(
     .insert(shopifyProducts)
     .values({
       productId: data.productId,
+      organizationId: data.organizationId,
       shopifyProductId: data.shopifyProductId,
       shopifyVariantId: data.shopifyVariantId,
       shopifyInventoryItemId: data.shopifyInventoryItemId ?? null,

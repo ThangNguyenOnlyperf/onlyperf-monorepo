@@ -7,6 +7,10 @@ export const user = pgTable("user", {
   email: text("email").notNull().unique(),
   role: text("role").notNull().default("user"),
   emailVerified: boolean("email_verified").notNull(),
+  // Admin plugin fields
+  banned: boolean("banned").default(false),
+  banReason: text("ban_reason"),
+  banExpires: timestamp("ban_expires"),
   createdAt: timestamp("created_at").notNull(),
   updatedAt: timestamp("updated_at").notNull(),
 });
@@ -37,6 +41,8 @@ export const session = pgTable("session", {
   userAgent: text("user_agent"),
   role: text("role").notNull().default("user"),
   userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  activeOrganizationId: text("active_organization_id"), // Multi-tenancy: current active org
+  impersonatedBy: text("impersonated_by"), // Admin plugin: impersonation
 });
 
 export const verification = pgTable("verification", {
@@ -48,20 +54,82 @@ export const verification = pgTable("verification", {
   updatedAt: timestamp("updated_at"),
 });
 
+// =============================================================================
+// Multi-tenancy: Organization tables (Better-auth organization plugin)
+// =============================================================================
+
+export const organization = pgTable("organization", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
+  logo: text("logo"),
+  metadata: text("metadata"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  slugIdx: uniqueIndex("organization_slug_idx").on(table.slug),
+}));
+
+export const member = pgTable("member", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  organizationId: text("organization_id").notNull().references(() => organization.id, { onDelete: "cascade" }),
+  role: text("role").notNull(), // 'owner' | 'admin' | 'member'
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  userOrgIdx: uniqueIndex("member_user_org_idx").on(table.userId, table.organizationId),
+  orgIdx: index("member_org_idx").on(table.organizationId),
+}));
+
+export const invitation = pgTable("invitation", {
+  id: text("id").primaryKey(),
+  email: text("email").notNull(),
+  inviterId: text("inviter_id").notNull().references(() => user.id),
+  organizationId: text("organization_id").notNull().references(() => organization.id, { onDelete: "cascade" }),
+  role: text("role").notNull(),
+  status: text("status").notNull().default("pending"),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  emailOrgIdx: index("invitation_email_org_idx").on(table.email, table.organizationId),
+  orgIdx: index("invitation_org_idx").on(table.organizationId),
+}));
+
+export const organizationSettings = pgTable("organization_settings", {
+  id: text("id").primaryKey(),
+  organizationId: text("organization_id").notNull().unique().references(() => organization.id, { onDelete: "cascade" }),
+  // Shopify integration
+  shopifyEnabled: boolean("shopify_enabled").notNull().default(false),
+  shopifyStoreDomain: text("shopify_store_domain"),
+  shopifyAdminApiAccessToken: text("shopify_admin_api_access_token"),
+  shopifyApiVersion: text("shopify_api_version").default("2025-04"),
+  shopifyLocationId: text("shopify_location_id"),
+  shopifyWebhookSecret: text("shopify_webhook_secret"),
+  // Other org-specific settings
+  defaultWarrantyMonths: integer("default_warranty_months").notNull().default(12),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => ({
+  orgIdx: uniqueIndex("organization_settings_org_idx").on(table.organizationId),
+}));
+
 // Brand management table
 export const brands = pgTable("brands", {
   id: text("id").primaryKey(),
-  name: text("name").notNull().unique(),
+  organizationId: text("organization_id").notNull().references(() => organization.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
   description: text("description"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => ({
   nameIdx: index("brands_name_idx").on(table.name),
+  orgIdx: index("brands_org_idx").on(table.organizationId),
+  orgNameUnique: uniqueIndex("brands_org_name_unique").on(table.organizationId, table.name),
 }));
 
 // Product management tables
 export const products = pgTable("products", {
   id: text("id").primaryKey(),
+  organizationId: text("organization_id").notNull().references(() => organization.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   brand: text("brand").notNull(), // Keep for backward compatibility, will migrate data
   brandId: text("brand_id").references(() => brands.id),
@@ -86,6 +154,7 @@ export const products = pgTable("products", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => ({
+  orgIdx: index("products_org_idx").on(table.organizationId),
   brandIdx: index("products_brand_idx").on(table.brand),
   brandIdIdx: index("products_brand_id_idx").on(table.brandId),
   colorIdIdx: index("products_color_id_idx").on(table.colorId),
@@ -104,6 +173,7 @@ export const shopifyProducts = pgTable("shopify_products", {
   productId: text("product_id")
     .primaryKey()
     .references(() => products.id, { onDelete: "cascade" }),
+  organizationId: text("organization_id").notNull().references(() => organization.id, { onDelete: "cascade" }),
   shopifyProductId: text("shopify_product_id").notNull(),
   shopifyVariantId: text("shopify_variant_id").notNull(),
   shopifyInventoryItemId: text("shopify_inventory_item_id"),
@@ -113,23 +183,28 @@ export const shopifyProducts = pgTable("shopify_products", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => ({
+  orgIdx: index("shopify_products_org_idx").on(table.organizationId),
   shopifyProductIdIdx: index("shopify_products_product_id_idx").on(table.shopifyProductId),
   shopifyVariantIdIdx: uniqueIndex("shopify_products_variant_id_idx").on(table.shopifyVariantId),
 }));
 
-// Global color catalog for consistent selection and display
+// Color catalog (per organization)
 export const colors = pgTable("colors", {
   id: text("id").primaryKey(),
-  name: text("name").notNull().unique(),
+  organizationId: text("organization_id").notNull().references(() => organization.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
   hex: text("hex").notNull(), // e.g. #FF0000
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => ({
   nameIdx: index("colors_name_idx").on(table.name),
+  orgIdx: index("colors_org_idx").on(table.organizationId),
+  orgNameUnique: uniqueIndex("colors_org_name_unique").on(table.organizationId, table.name),
 }));
 
 export const providers = pgTable("providers", {
   id: text("id").primaryKey(),
+  organizationId: text("organization_id").notNull().references(() => organization.id, { onDelete: "cascade" }),
   type: text("type").notNull(),
   name: text("name").notNull(),
   taxCode: text("tax_code"),
@@ -139,6 +214,7 @@ export const providers = pgTable("providers", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => ({
+  orgIdx: index("providers_org_idx").on(table.organizationId),
   typeIdx: index("providers_type_idx").on(table.type),
   nameIdx: index("providers_name_idx").on(table.name),
   telephoneIdx: index("providers_telephone_idx").on(table.telephone),
@@ -146,7 +222,8 @@ export const providers = pgTable("providers", {
 
 export const shipments = pgTable("shipments", {
   id: text("id").primaryKey(),
-  receiptNumber: text("receipt_number").notNull().unique(),
+  organizationId: text("organization_id").notNull().references(() => organization.id, { onDelete: "cascade" }),
+  receiptNumber: text("receipt_number").notNull(),
   receiptDate: date("receipt_date").notNull(),
   supplierName: text("supplier_name").notNull(),
   providerId: text("provider_id").references(() => providers.id),
@@ -156,7 +233,9 @@ export const shipments = pgTable("shipments", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => ({
+  orgIdx: index("shipments_org_idx").on(table.organizationId),
   receiptNumberIdx: index("shipments_receipt_number_idx").on(table.receiptNumber),
+  orgReceiptUnique: uniqueIndex("shipments_org_receipt_unique").on(table.organizationId, table.receiptNumber),
   statusIdx: index("shipments_status_idx").on(table.status),
   createdAtIdx: index("shipments_created_at_idx").on(table.createdAt),
   providerIdIdx: index("shipments_provider_id_idx").on(table.providerId),
@@ -164,6 +243,7 @@ export const shipments = pgTable("shipments", {
 
 export const shipmentItems = pgTable("shipment_items", {
   id: text("id").primaryKey(),
+  organizationId: text("organization_id").notNull().references(() => organization.id, { onDelete: "cascade" }),
   shipmentId: text("shipment_id").notNull().references(() => shipments.id, { onDelete: "cascade" }),
   productId: text("product_id").notNull().references(() => products.id),
   quantity: integer("quantity").notNull(),
@@ -195,6 +275,7 @@ export const shipmentItems = pgTable("shipment_items", {
   // Authentication flag (for anti-counterfeit)
   isAuthentic: boolean("is_authentic").notNull().default(true),
 }, (table) => ({
+  orgIdx: index("shipment_items_org_idx").on(table.organizationId),
   shipmentIdIdx: index("shipment_items_shipment_id_idx").on(table.shipmentId),
   productIdIdx: index("shipment_items_product_id_idx").on(table.productId),
   qrCodeIdx: index("shipment_items_qr_code_idx").on(table.qrCode),
@@ -207,6 +288,7 @@ export const shipmentItems = pgTable("shipment_items", {
 
 export const storages = pgTable("storages", {
   id: text("id").primaryKey(),
+  organizationId: text("organization_id").notNull().references(() => organization.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   location: text("location").notNull(),
   capacity: integer("capacity").notNull(),
@@ -216,6 +298,7 @@ export const storages = pgTable("storages", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => ({
+  orgIdx: index("storages_org_idx").on(table.organizationId),
   nameIdx: index("storages_name_idx").on(table.name),
   priorityIdx: index("storages_priority_idx").on(table.priority),
 }));
@@ -223,19 +306,23 @@ export const storages = pgTable("storages", {
 // Customer management table
 export const customers = pgTable("customers", {
   id: text("id").primaryKey(),
+  organizationId: text("organization_id").notNull().references(() => organization.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   phone: text("phone").notNull(),
   address: text("address"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => ({
+  orgIdx: index("customers_org_idx").on(table.organizationId),
   phoneIdx: index("customers_phone_idx").on(table.phone),
+  orgPhoneUnique: uniqueIndex("customers_org_phone_unique").on(table.organizationId, table.phone),
 }));
 
 // Order management table
 export const orders = pgTable("orders", {
   id: text("id").primaryKey(),
-  orderNumber: text("order_number").notNull().unique(),
+  organizationId: text("organization_id").notNull().references(() => organization.id, { onDelete: "cascade" }),
+  orderNumber: text("order_number").notNull(),
   customerId: text("customer_id").notNull().references(() => customers.id),
   providerId: text("provider_id").references(() => providers.id), // For B2B sales tracking
   customerType: text("customer_type").notNull().default("b2c"), // 'b2b' or 'b2c'
@@ -254,7 +341,9 @@ export const orders = pgTable("orders", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => ({
+  orgIdx: index("orders_org_idx").on(table.organizationId),
   orderNumberIdx: index("orders_order_number_idx").on(table.orderNumber),
+  orgOrderUnique: uniqueIndex("orders_org_order_unique").on(table.organizationId, table.orderNumber),
   customerIdIdx: index("orders_customer_id_idx").on(table.customerId),
   providerIdIdx: index("orders_provider_id_idx").on(table.providerId),
   paymentCodeIdx: index("orders_payment_code_idx").on(table.paymentCode),
@@ -270,6 +359,7 @@ export const orders = pgTable("orders", {
 // For in-store orders: shipmentItemId is set immediately during order creation
 export const orderItems = pgTable("order_items", {
   id: text("id").primaryKey(),
+  organizationId: text("organization_id").notNull().references(() => organization.id, { onDelete: "cascade" }),
   orderId: text("order_id").notNull().references(() => orders.id, { onDelete: "cascade" }),
   shipmentItemId: text("shipment_item_id").references(() => shipmentItems.id), // Nullable for manual fulfillment
   productId: text("product_id").notNull().references(() => products.id),
@@ -280,6 +370,7 @@ export const orderItems = pgTable("order_items", {
   scannedAt: timestamp("scanned_at"), // When item was scanned during fulfillment
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => ({
+  orgIdx: index("order_items_org_idx").on(table.organizationId),
   orderIdIdx: index("order_items_order_id_idx").on(table.orderId),
   shipmentItemIdIdx: index("order_items_shipment_item_id_idx").on(table.shipmentItemId),
   qrCodeIdx: index("order_items_qr_code_idx").on(table.qrCode),
@@ -289,7 +380,8 @@ export const orderItems = pgTable("order_items", {
 // Scanning sessions for multi-device sync
 export const scanningSessions = pgTable("scanning_sessions", {
   id: text("id").primaryKey().notNull().$defaultFn(() => `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`),
-  userId: text("user_id").notNull().unique().references(() => user.id, { onDelete: "cascade" }),
+  organizationId: text("organization_id").notNull().references(() => organization.id, { onDelete: "cascade" }),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
   cartItems: text("cart_items").notNull().default("[]"), // JSON array of cart items
   customerInfo: text("customer_info").notNull().default("{}"), // JSON object
   deviceCount: integer("device_count").notNull().default(0),
@@ -298,13 +390,16 @@ export const scanningSessions = pgTable("scanning_sessions", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => ({
+  orgIdx: index("scanning_sessions_org_idx").on(table.organizationId),
   userIdIdx: index("scanning_sessions_user_id_idx").on(table.userId),
+  orgUserUnique: uniqueIndex("scanning_sessions_org_user_unique").on(table.organizationId, table.userId),
   lastUpdatedIdx: index("scanning_sessions_last_updated_idx").on(table.lastUpdated),
 }));
 
 // Delivery tracking table
 export const deliveries = pgTable("deliveries", {
   id: text("id").primaryKey(),
+  organizationId: text("organization_id").notNull().references(() => organization.id, { onDelete: "cascade" }),
   orderId: text("order_id").notNull().references(() => orders.id, { onDelete: "cascade" }),
   shipperName: text("shipper_name").notNull(),
   shipperPhone: text("shipper_phone"),
@@ -319,6 +414,7 @@ export const deliveries = pgTable("deliveries", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => ({
+  orgIdx: index("deliveries_org_idx").on(table.organizationId),
   orderIdIdx: index("deliveries_order_id_idx").on(table.orderId),
   statusIdx: index("deliveries_status_idx").on(table.status),
   deliveredAtIdx: index("deliveries_delivered_at_idx").on(table.deliveredAt),
@@ -328,6 +424,7 @@ export const deliveries = pgTable("deliveries", {
 // Delivery history for audit trail
 export const deliveryHistory = pgTable("delivery_history", {
   id: text("id").primaryKey(),
+  organizationId: text("organization_id").notNull().references(() => organization.id, { onDelete: "cascade" }),
   deliveryId: text("delivery_id").notNull().references(() => deliveries.id, { onDelete: "cascade" }),
   fromStatus: text("from_status"),
   toStatus: text("to_status").notNull(),
@@ -335,6 +432,7 @@ export const deliveryHistory = pgTable("delivery_history", {
   changedBy: text("changed_by").references(() => user.id),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => ({
+  orgIdx: index("delivery_history_org_idx").on(table.organizationId),
   deliveryIdIdx: index("delivery_history_delivery_id_idx").on(table.deliveryId),
   createdAtIdx: index("delivery_history_created_at_idx").on(table.createdAt),
 }));
@@ -342,6 +440,7 @@ export const deliveryHistory = pgTable("delivery_history", {
 // Failed delivery resolutions
 export const deliveryResolutions = pgTable("delivery_resolutions", {
   id: text("id").primaryKey(),
+  organizationId: text("organization_id").notNull().references(() => organization.id, { onDelete: "cascade" }),
   deliveryId: text("delivery_id").notNull().references(() => deliveries.id, { onDelete: "cascade" }),
   resolutionType: text("resolution_type").notNull(), // re_import, return_to_supplier, retry_delivery
   resolutionStatus: text("resolution_status").notNull().default("pending"), // pending, in_progress, completed
@@ -354,6 +453,7 @@ export const deliveryResolutions = pgTable("delivery_resolutions", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => ({
+  orgIdx: index("delivery_resolutions_org_idx").on(table.organizationId),
   deliveryIdIdx: index("delivery_resolutions_delivery_id_idx").on(table.deliveryId),
   resolutionTypeIdx: index("delivery_resolutions_type_idx").on(table.resolutionType),
   resolutionStatusIdx: index("delivery_resolutions_status_idx").on(table.resolutionStatus),
@@ -366,12 +466,14 @@ export const deliveryResolutions = pgTable("delivery_resolutions", {
 // Ownership transfers - Audit trail for product ownership changes
 export const ownershipTransfers = pgTable("ownership_transfers", {
   id: text("id").primaryKey().$defaultFn(() => `ot_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`),
+  organizationId: text("organization_id").notNull().references(() => organization.id, { onDelete: "cascade" }),
   shipmentItemId: text("shipment_item_id").notNull().references(() => shipmentItems.id, { onDelete: "cascade" }),
   fromOwnerId: text("from_owner_id").notNull(), // Shopify customer GID
   toOwnerId: text("to_owner_id").notNull(), // Shopify customer GID
   transferredAt: timestamp("transferred_at").notNull().defaultNow(),
   warrantyTransferred: boolean("warranty_transferred").notNull().default(true),
 }, (table) => ({
+  orgIdx: index("ownership_transfers_org_idx").on(table.organizationId),
   shipmentItemIdx: index("ownership_transfers_shipment_item_idx").on(table.shipmentItemId),
   fromOwnerIdx: index("ownership_transfers_from_owner_idx").on(table.fromOwnerId),
   toOwnerIdx: index("ownership_transfers_to_owner_idx").on(table.toOwnerId),
@@ -388,6 +490,7 @@ export type CustomerScanLocation = {
 // Customer scans - Analytics for QR code scanning by customers
 export const customerScans = pgTable("customer_scans", {
   id: text("id").primaryKey().$defaultFn(() => `cs_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`),
+  organizationId: text("organization_id").notNull().references(() => organization.id, { onDelete: "cascade" }),
   qrCode: text("qr_code").notNull(),
   shipmentItemId: text("shipment_item_id").references(() => shipmentItems.id, { onDelete: "cascade" }),
   customerId: text("customer_id"), // Null if not logged in
@@ -396,6 +499,7 @@ export const customerScans = pgTable("customer_scans", {
   location: jsonb("location").$type<CustomerScanLocation>(),
   scannedAt: timestamp("scanned_at").notNull().defaultNow(),
 }, (table) => ({
+  orgIdx: index("customer_scans_org_idx").on(table.organizationId),
   qrCodeIdx: index("customer_scans_qr_code_idx").on(table.qrCode),
   shipmentItemIdx: index("customer_scans_shipment_item_idx").on(table.shipmentItemId),
   scannedAtIdx: index("customer_scans_scanned_at_idx").on(table.scannedAt),
@@ -404,6 +508,7 @@ export const customerScans = pgTable("customer_scans", {
 // Warranty claims - Customer warranty claim submissions
 export const warrantyClaims = pgTable("warranty_claims", {
   id: text("id").primaryKey().$defaultFn(() => `wc_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`),
+  organizationId: text("organization_id").notNull().references(() => organization.id, { onDelete: "cascade" }),
   shipmentItemId: text("shipment_item_id").notNull().references(() => shipmentItems.id, { onDelete: "cascade" }),
   customerId: text("customer_id").notNull(), // Shopify customer GID
   claimType: text("claim_type").notNull(), // defect | damage | repair | replacement
@@ -418,6 +523,7 @@ export const warrantyClaims = pgTable("warranty_claims", {
   resolvedAt: timestamp("resolved_at"),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => ({
+  orgIdx: index("warranty_claims_org_idx").on(table.organizationId),
   shipmentItemIdx: index("warranty_claims_shipment_item_idx").on(table.shipmentItemId),
   customerIdx: index("warranty_claims_customer_idx").on(table.customerId),
   statusIdx: index("warranty_claims_status_idx").on(table.status),
@@ -431,6 +537,7 @@ export const sepayTransactions = pgTable(
       .$defaultFn(
         () => `sepay_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
       ),
+    organizationId: text("organization_id").notNull().references(() => organization.id, { onDelete: "cascade" }),
     sepayTransactionId: text("sepay_transaction_id").unique(),
     gateway: text("gateway").notNull(),
     transactionDate: timestamp("transaction_date", {
@@ -457,6 +564,7 @@ export const sepayTransactions = pgTable(
       .defaultNow(),
   },
   (table) => ({
+    orgIdx: index("sepay_transactions_org_idx").on(table.organizationId),
     sepayTransactionIdIdx: index(
       "sepay_transactions_sepay_transaction_id_idx",
     ).on(table.sepayTransactionId),
@@ -487,6 +595,7 @@ export const checkoutSessions = pgTable(
       .$defaultFn(
         () => `cs_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
       ),
+    organizationId: text("organization_id").notNull().references(() => organization.id, { onDelete: "cascade" }),
     paymentCode: text("payment_code").notNull(),
     cartId: text("cart_id").notNull(),
     linesSnapshot: jsonb("lines_snapshot").notNull(),
@@ -526,6 +635,7 @@ export const checkoutSessions = pgTable(
       .defaultNow(),
   },
   (table) => ({
+    orgIdx: index("checkout_sessions_org_idx").on(table.organizationId),
     paymentCodeIdx: uniqueIndex("checkout_sessions_payment_code_idx").on(
       table.paymentCode,
     ),
@@ -539,6 +649,45 @@ export const checkoutSessions = pgTable(
 // ============================================================================
 // RELATIONS - Drizzle ORM relational query API
 // ============================================================================
+
+// Organization relations
+export const organizationRelations = relations(organization, ({ many, one }) => ({
+  members: many(member),
+  invitations: many(invitation),
+  settings: one(organizationSettings, {
+    fields: [organization.id],
+    references: [organizationSettings.organizationId],
+  }),
+}));
+
+export const memberRelations = relations(member, ({ one }) => ({
+  user: one(user, {
+    fields: [member.userId],
+    references: [user.id],
+  }),
+  organization: one(organization, {
+    fields: [member.organizationId],
+    references: [organization.id],
+  }),
+}));
+
+export const invitationRelations = relations(invitation, ({ one }) => ({
+  inviter: one(user, {
+    fields: [invitation.inviterId],
+    references: [user.id],
+  }),
+  organization: one(organization, {
+    fields: [invitation.organizationId],
+    references: [organization.id],
+  }),
+}));
+
+export const organizationSettingsRelations = relations(organizationSettings, ({ one }) => ({
+  organization: one(organization, {
+    fields: [organizationSettings.organizationId],
+    references: [organization.id],
+  }),
+}));
 
 export const shipmentsRelations = relations(shipments, ({ many, one }) => ({
   items: many(shipmentItems),
@@ -683,6 +832,7 @@ export const deliveryHistoryRelations = relations(deliveryHistory, ({ one }) => 
 export const userRelations = relations(user, ({ many, one }) => ({
   accounts: many(account),
   sessions: many(session),
+  memberships: many(member), // Organization memberships
   createdShipments: many(shipments),
   createdStorages: many(storages),
   processedOrders: many(orders),

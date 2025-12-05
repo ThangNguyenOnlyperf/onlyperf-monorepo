@@ -1,10 +1,16 @@
 "use server"
 import { db } from "~/server/db";
 import { customers } from "~/server/db/schema";
+import { eq } from "drizzle-orm";
+import { requireOrgContext } from "~/lib/authorization";
 
 export async function getCustomer(){
   try{
-    const customer = await db.select().from(customers)
+    const { organizationId } = await requireOrgContext();
+    const customer = await db
+      .select()
+      .from(customers)
+      .where(eq(customers.organizationId, organizationId));
     return {
       success:true,
       data:customer,
@@ -13,7 +19,7 @@ export async function getCustomer(){
   }catch(error){
     return {
       success:false,
-      message:error,
+      message:error instanceof Error ? error.message : "Unknown error",
       data:[]
     }
   }

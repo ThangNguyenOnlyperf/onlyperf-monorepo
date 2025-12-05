@@ -1,5 +1,8 @@
 import { headers } from "next/headers";
 import { auth } from "./auth";
+import { db } from "~/server/db";
+import { member } from "~/server/db/schema";
+import { eq, and } from "drizzle-orm";
 
 /**
  * Role permissions matrix
@@ -142,4 +145,98 @@ export async function isAdmin(): Promise<boolean> {
  */
 export async function requireAdmin() {
   return requireAuth({ roles: ["admin"] });
+}
+
+// =============================================================================
+// Multi-tenancy: Organization context helpers
+// =============================================================================
+
+/**
+ * Org role to app role mapping
+ * org owner/admin -> app admin
+ * org member -> app user
+ */
+const ORG_ROLE_TO_APP_ROLE: Record<string, Role> = {
+  owner: "admin",
+  admin: "admin",
+  member: "user",
+};
+
+export interface OrgContext {
+  organizationId: string;
+  userId: string;
+  userName: string;
+  userRole: Role;
+  orgRole: string;
+  session: Awaited<ReturnType<typeof auth.api.getSession>>;
+}
+
+/**
+ * Require authentication with organization context
+ * This is the main authorization function for multi-tenant operations
+ *
+ * @param options.permissions - Array of required permissions (user needs at least one)
+ * @throws Error if user is not authenticated, no org selected, or not a member
+ * @returns OrgContext with organizationId, userId, userRole, orgRole
+ */
+export async function requireOrgContext(options?: {
+  permissions?: string[];
+}): Promise<OrgContext> {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session?.user) {
+    throw new Error("Chưa đăng nhập. Vui lòng đăng nhập để tiếp tục.");
+  }
+
+  // Get activeOrganizationId from session
+  const activeOrgId = (session.session as { activeOrganizationId?: string })?.activeOrganizationId;
+
+  if (!activeOrgId) {
+    throw new Error("Chưa chọn tổ chức. Vui lòng chọn tổ chức để tiếp tục.");
+  }
+
+  // Verify membership
+  const membership = await db.query.member.findFirst({
+    where: and(
+      eq(member.userId, session.user.id),
+      eq(member.organizationId, activeOrgId)
+    ),
+  });
+
+  if (!membership) {
+    throw new Error("Bạn không còn là thành viên của tổ chức này.");
+  }
+
+  // Map org role to app role
+  const appRole = ORG_ROLE_TO_APP_ROLE[membership.role] ?? "user";
+
+  // Check permissions
+  if (options?.permissions && !hasAnyPermission(appRole, options.permissions)) {
+    throw new Error(
+      `Không có quyền thực hiện thao tác này. Yêu cầu quyền: ${options.permissions.join(" hoặc ")}`
+    );
+  }
+
+  return {
+    organizationId: activeOrgId,
+    userId: session.user.id,
+    userName: session.user.name ?? "Unknown",
+    userRole: appRole,
+    orgRole: membership.role,
+    session,
+  };
+}
+
+/**
+ * Get organization context without throwing errors
+ * Useful for optional organization context checks
+ */
+export async function getOrgContext(): Promise<OrgContext | null> {
+  try {
+    return await requireOrgContext();
+  } catch {
+    return null;
+  }
 }

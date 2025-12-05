@@ -2,40 +2,30 @@
 
 import { db } from '~/server/db';
 import { shipmentItems, products, customers, orders, orderItems } from '~/server/db/schema';
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, and } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import type { ActionResult } from './types';
 import type { OrderData, ScannedProduct } from '~/components/outbound/types';
 import { generateOrderExcel } from '~/lib/excel-export/orderExport';
-import { auth } from '~/lib/auth';
-import { headers } from 'next/headers';
 import { queueInventorySync } from '~/lib/shopify/inventory';
-import { logger, getUserContext } from '~/lib/logger';
+import { logger } from '~/lib/logger';
+import { requireOrgContext } from '~/lib/authorization';
 
 export async function updateProductPrice(productId: string, price: number): Promise<ActionResult> {
-  const session = await auth.api.getSession({
-    headers: await headers()
-  });
-
-  if (!session) {
-    logger.warn('Unauthorized attempt to update product price');
-    return {
-      success: false,
-      message: 'Bạn cần đăng nhập để cập nhật giá sản phẩm'
-    };
-  }
-
-  const userContext = getUserContext(session);
-
   try {
+    const { organizationId, userId, userName } = await requireOrgContext({ permissions: ['update:products'] });
+
     const [oldProduct] = await db
       .select({ name: products.name, price: products.price })
       .from(products)
-      .where(eq(products.id, productId))
+      .where(and(
+        eq(products.id, productId),
+        eq(products.organizationId, organizationId)
+      ))
       .limit(1);
 
     if (!oldProduct) {
-      logger.warn({ productId }, 'Không tìm thấy sản phẩm để cập nhật giá');
+      logger.warn({ productId, organizationId }, 'Không tìm thấy sản phẩm để cập nhật giá');
       return {
         success: false,
         message: 'Không tìm thấy sản phẩm'
@@ -43,12 +33,14 @@ export async function updateProductPrice(productId: string, price: number): Prom
     }
 
     logger.info({
-      ...userContext,
+      userId,
+      userName,
+      organizationId,
       productId,
       productName: oldProduct.name,
       oldPrice: oldProduct.price,
       newPrice: price
-    }, `User ${userContext.userName} đang cập nhật giá sản phẩm`);
+    }, `User ${userName} đang cập nhật giá sản phẩm`);
 
     await db
       .update(products)
@@ -56,22 +48,27 @@ export async function updateProductPrice(productId: string, price: number): Prom
         price: price,
         updatedAt: new Date()
       })
-      .where(eq(products.id, productId));
+      .where(and(
+        eq(products.id, productId),
+        eq(products.organizationId, organizationId)
+      ));
 
     logger.info({
-      ...userContext,
+      userId,
+      userName,
+      organizationId,
       productId,
       productName: oldProduct.name,
       oldPrice: oldProduct.price,
       newPrice: price
-    }, `User ${userContext.userName} đã cập nhật giá sản phẩm thành công`);
+    }, `User ${userName} đã cập nhật giá sản phẩm thành công`);
 
     return {
       success: true,
       message: 'Đã cập nhật giá sản phẩm'
     };
   } catch (error) {
-    logger.error({ ...userContext, error, productId }, `User ${userContext.userName} gặp lỗi khi cập nhật giá sản phẩm`);
+    logger.error({ error, productId }, 'Lỗi khi cập nhật giá sản phẩm');
     return {
       success: false,
       message: 'Không thể cập nhật giá sản phẩm'
@@ -81,7 +78,8 @@ export async function updateProductPrice(productId: string, price: number): Prom
 
 export async function validateAndFetchItem(qrCode: string): Promise<ActionResult<ScannedProduct>> {
   try {
-    logger.info({ qrCode }, 'Bắt đầu xác thực sản phẩm qua mã QR');
+    const { organizationId } = await requireOrgContext();
+    logger.info({ qrCode, organizationId }, 'Bắt đầu xác thực sản phẩm qua mã QR');
 
     let productCode = qrCode;
     if (qrCode.includes('/p/')) {
@@ -103,7 +101,10 @@ export async function validateAndFetchItem(qrCode: string): Promise<ActionResult
       })
       .from(shipmentItems)
       .leftJoin(products, eq(shipmentItems.productId, products.id))
-      .where(eq(shipmentItems.qrCode, productCode))
+      .where(and(
+        eq(shipmentItems.qrCode, productCode),
+        eq(shipmentItems.organizationId, organizationId)
+      ))
       .limit(1);
 
     if (item.length === 0) {
@@ -173,29 +174,17 @@ export async function validateAndFetchItem(qrCode: string): Promise<ActionResult
 }
 
 export async function processOrder(orderData: OrderData): Promise<ActionResult<{ orderId: string; orderNumber: string; excelUrl?: string }>> {
-  // Get the current user session
-  const session = await auth.api.getSession({
-    headers: await headers()
-  });
-
-  if (!session) {
-    logger.warn('Unauthenticated order processing attempt');
-    return {
-      success: false,
-      message: 'Bạn cần đăng nhập để xử lý đơn hàng'
-    };
-  }
-
-  const userId = session.user.id;
-  const userContext = getUserContext(session);
-
   try {
+    const { organizationId, userId, userName } = await requireOrgContext({ permissions: ['create:orders'] });
+
     logger.info({
-      ...userContext,
+      userId,
+      userName,
+      organizationId,
       customerPhone: orderData.customerInfo.phone,
       itemCount: orderData.cartItems.length,
       totalAmount: orderData.totalAmount,
-    }, `User ${userContext.userName} processing outbound order`);
+    }, `User ${userName} processing outbound order`);
 
     const productIdsForSync = Array.from(new Set(orderData.cartItems.map(item => item.productId)));
 
@@ -207,7 +196,10 @@ export async function processOrder(orderData: OrderData): Promise<ActionResult<{
           status: shipmentItems.status,
         })
         .from(shipmentItems)
-        .where(inArray(shipmentItems.id, itemIds));
+        .where(and(
+          inArray(shipmentItems.id, itemIds),
+          eq(shipmentItems.organizationId, organizationId)
+        ));
 
       const unavailableItems = currentItems.filter(item => item.status !== 'received');
       if (unavailableItems.length > 0) {
@@ -218,7 +210,10 @@ export async function processOrder(orderData: OrderData): Promise<ActionResult<{
       const existingCustomer = await tx
         .select()
         .from(customers)
-        .where(eq(customers.phone, orderData.customerInfo.phone))
+        .where(and(
+          eq(customers.phone, orderData.customerInfo.phone),
+          eq(customers.organizationId, organizationId)
+        ))
         .limit(1);
 
       if (existingCustomer.length > 0 && existingCustomer[0]) {
@@ -230,11 +225,15 @@ export async function processOrder(orderData: OrderData): Promise<ActionResult<{
             address: orderData.customerInfo.address || existingCustomer[0].address,
             updatedAt: new Date()
           })
-          .where(eq(customers.id, customerId));
+          .where(and(
+            eq(customers.id, customerId),
+            eq(customers.organizationId, organizationId)
+          ));
       } else {
         customerId = nanoid();
         await tx.insert(customers).values({
           id: customerId,
+          organizationId,
           name: orderData.customerInfo.name,
           phone: orderData.customerInfo.phone,
           address: orderData.customerInfo.address || null,
@@ -248,6 +247,7 @@ export async function processOrder(orderData: OrderData): Promise<ActionResult<{
       const orderId = nanoid();
       await tx.insert(orders).values({
         id: orderId,
+        organizationId,
         orderNumber,
         customerId,
         providerId: orderData.customerInfo.providerId ?? null,
@@ -265,6 +265,7 @@ export async function processOrder(orderData: OrderData): Promise<ActionResult<{
 
       const orderItemsData = orderData.cartItems.map(item => ({
         id: nanoid(),
+        organizationId,
         orderId,
         shipmentItemId: item.shipmentItemId,
         productId: item.productId,
@@ -281,7 +282,10 @@ export async function processOrder(orderData: OrderData): Promise<ActionResult<{
         .set({
           status: 'sold'
         })
-        .where(inArray(shipmentItems.id, itemIds));
+        .where(and(
+          inArray(shipmentItems.id, itemIds),
+          eq(shipmentItems.organizationId, organizationId)
+        ));
 
       let excelData: { excelData: string; fileName: string } | undefined;
       try {
@@ -290,7 +294,7 @@ export async function processOrder(orderData: OrderData): Promise<ActionResult<{
           customerInfo: orderData.customerInfo,
           items: orderData.cartItems,
           totalAmount: orderData.totalAmount,
-          processedBy: session.user.name || session.user.email,
+          processedBy: userName,
           createdAt: new Date()
         });
         // Convert buffer to base64
@@ -316,16 +320,18 @@ export async function processOrder(orderData: OrderData): Promise<ActionResult<{
     }
 
     logger.info({
-      ...userContext,
+      userId,
+      userName,
+      organizationId,
       orderId: result.data?.orderId,
       orderNumber: result.data?.orderNumber,
       customerPhone: orderData.customerInfo.phone,
       itemCount: orderData.cartItems.length,
-    }, `User ${userContext.userName} completed outbound order ${result.data?.orderNumber}`);
+    }, `User ${userName} completed outbound order ${result.data?.orderNumber}`);
 
     return result;
   } catch (error) {
-    logger.error({ ...userContext, error, customerPhone: orderData.customerInfo.phone }, `User ${userContext.userName} failed to process outbound order`);
+    logger.error({ error, customerPhone: orderData.customerInfo.phone }, 'Failed to process outbound order');
     return {
       success: false,
       message: error instanceof Error ? error.message : 'Lỗi khi xử lý đơn hàng'

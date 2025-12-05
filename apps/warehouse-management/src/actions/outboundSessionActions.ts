@@ -3,10 +3,9 @@
 import { db } from '~/server/db';
 import { scanningSessions } from '~/server/db/schema';
 import { eq, and, gt } from 'drizzle-orm';
-import { auth } from '~/lib/auth';
-import { headers } from 'next/headers';
 import type { CartItem, CustomerInfo } from '~/components/outbound/types';
 import { logger } from '~/lib/logger';
+import { requireOrgContext } from '~/lib/authorization';
 
 interface SessionData {
   id: string;
@@ -27,24 +26,16 @@ interface ActionResult<T = unknown> {
 // Get or create a scanning session for the current user
 export async function getOrCreateUserSession(): Promise<ActionResult<SessionData>> {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user?.id) {
-      return {
-        success: false,
-        message: 'Không tìm thấy phiên đăng nhập',
-      };
-    }
-
-    const userId = session.user.id;
+    const { organizationId, userId } = await requireOrgContext();
 
     // Try to get existing session
     const existing = await db
       .select()
       .from(scanningSessions)
-      .where(eq(scanningSessions.userId, userId))
+      .where(and(
+        eq(scanningSessions.userId, userId),
+        eq(scanningSessions.organizationId, organizationId)
+      ))
       .limit(1);
 
     if (existing.length > 0 && existing[0]) {
@@ -78,6 +69,7 @@ export async function getOrCreateUserSession(): Promise<ActionResult<SessionData
     const newSession = await db
       .insert(scanningSessions)
       .values({
+        organizationId,
         userId,
         cartItems: JSON.stringify([]),
         customerInfo: JSON.stringify(defaultCustomerInfo),
@@ -119,18 +111,7 @@ export async function getOrCreateUserSession(): Promise<ActionResult<SessionData
 // Update cart items in the session
 export async function updateSessionCart(cartItems: CartItem[]): Promise<ActionResult<SessionData>> {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user?.id) {
-      return {
-        success: false,
-        message: 'Không tìm thấy phiên đăng nhập',
-      };
-    }
-
-    const userId = session.user.id;
+    const { organizationId, userId } = await requireOrgContext();
 
     const updated = await db
       .update(scanningSessions)
@@ -139,7 +120,10 @@ export async function updateSessionCart(cartItems: CartItem[]): Promise<ActionRe
         lastUpdated: new Date(),
         updatedAt: new Date(),
       })
-      .where(eq(scanningSessions.userId, userId))
+      .where(and(
+        eq(scanningSessions.userId, userId),
+        eq(scanningSessions.organizationId, organizationId)
+      ))
       .returning();
 
     if (updated.length === 0 || !updated[0]) {
@@ -174,18 +158,7 @@ export async function updateSessionCart(cartItems: CartItem[]): Promise<ActionRe
 // Update customer info in the session
 export async function updateSessionCustomer(customerInfo: CustomerInfo): Promise<ActionResult<SessionData>> {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user?.id) {
-      return {
-        success: false,
-        message: 'Không tìm thấy phiên đăng nhập',
-      };
-    }
-
-    const userId = session.user.id;
+    const { organizationId, userId } = await requireOrgContext();
 
     const updated = await db
       .update(scanningSessions)
@@ -194,7 +167,10 @@ export async function updateSessionCustomer(customerInfo: CustomerInfo): Promise
         lastUpdated: new Date(),
         updatedAt: new Date(),
       })
-      .where(eq(scanningSessions.userId, userId))
+      .where(and(
+        eq(scanningSessions.userId, userId),
+        eq(scanningSessions.organizationId, organizationId)
+      ))
       .returning();
 
     if (updated.length === 0 || !updated[0]) {
@@ -229,24 +205,16 @@ export async function updateSessionCustomer(customerInfo: CustomerInfo): Promise
 // Sync and get latest session data
 export async function syncSessionData(lastKnownUpdate?: Date): Promise<ActionResult<SessionData | null>> {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user?.id) {
-      return {
-        success: false,
-        message: 'Không tìm thấy phiên đăng nhập',
-      };
-    }
-
-    const userId = session.user.id;
+    const { organizationId, userId } = await requireOrgContext();
 
     // Get current session
     const sessionData = await db
       .select()
       .from(scanningSessions)
-      .where(eq(scanningSessions.userId, userId))
+      .where(and(
+        eq(scanningSessions.userId, userId),
+        eq(scanningSessions.organizationId, organizationId)
+      ))
       .limit(1);
 
     if (sessionData.length === 0 || !sessionData[0]) {
@@ -274,7 +242,10 @@ export async function syncSessionData(lastKnownUpdate?: Date): Promise<ActionRes
       .set({
         lastPing: new Date(),
       })
-      .where(eq(scanningSessions.userId, userId));
+      .where(and(
+        eq(scanningSessions.userId, userId),
+        eq(scanningSessions.organizationId, organizationId)
+      ));
 
     return {
       success: true,
@@ -301,18 +272,7 @@ export async function syncSessionData(lastKnownUpdate?: Date): Promise<ActionRes
 // Clear session after order completion
 export async function clearUserSession(): Promise<ActionResult> {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user?.id) {
-      return {
-        success: false,
-        message: 'Không tìm thấy phiên đăng nhập',
-      };
-    }
-
-    const userId = session.user.id;
+    const { organizationId, userId } = await requireOrgContext();
 
     const defaultCustomerInfo: CustomerInfo = {
       name: '',
@@ -332,7 +292,10 @@ export async function clearUserSession(): Promise<ActionResult> {
         lastUpdated: new Date(),
         updatedAt: new Date(),
       })
-      .where(eq(scanningSessions.userId, userId));
+      .where(and(
+        eq(scanningSessions.userId, userId),
+        eq(scanningSessions.organizationId, organizationId)
+      ));
 
     return {
       success: true,
@@ -350,18 +313,7 @@ export async function clearUserSession(): Promise<ActionResult> {
 // Ping session to track active devices
 export async function pingSession(deviceId: string): Promise<ActionResult<{ deviceCount: number }>> {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user?.id) {
-      return {
-        success: false,
-        message: 'Không tìm thấy phiên đăng nhập',
-      };
-    }
-
-    const userId = session.user.id;
+    const { organizationId, userId } = await requireOrgContext();
 
     // Update last ping
     await db
@@ -369,7 +321,10 @@ export async function pingSession(deviceId: string): Promise<ActionResult<{ devi
       .set({
         lastPing: new Date(),
       })
-      .where(eq(scanningSessions.userId, userId));
+      .where(and(
+        eq(scanningSessions.userId, userId),
+        eq(scanningSessions.organizationId, organizationId)
+      ));
 
     // Count active devices (pinged in last 10 seconds)
     const activeCutoff = new Date(Date.now() - 10000);
@@ -379,6 +334,7 @@ export async function pingSession(deviceId: string): Promise<ActionResult<{ devi
       .where(
         and(
           eq(scanningSessions.userId, userId),
+          eq(scanningSessions.organizationId, organizationId),
           gt(scanningSessions.lastPing, activeCutoff)
         )
       );

@@ -163,6 +163,7 @@ export async function createShopifyProductFromWarehouse(
     await upsertShopifyProductMapping(
       {
         productId: product.id,
+        organizationId: product.organizationId,
         shopifyProductId: variantResult.shopifyProductId,
         shopifyVariantId: variantResult.shopifyVariantId,
         shopifyInventoryItemId: variantResult.shopifyInventoryItemId,
@@ -211,6 +212,7 @@ export async function createShopifyProductFromWarehouse(
   await upsertShopifyProductMapping(
     {
       productId: product.id,
+      organizationId: product.organizationId,
       shopifyProductId,
       shopifyVariantId,
       shopifyInventoryItemId,

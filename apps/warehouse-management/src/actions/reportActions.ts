@@ -14,7 +14,7 @@ import {
 } from '~/server/db/schema';
 import { eq, and, or, ilike, sql, desc, asc, inArray } from 'drizzle-orm';
 import { logger } from '~/lib/logger';
-import { requireAuth } from '~/lib/authorization';
+import { requireOrgContext } from '~/lib/authorization';
 
 interface ActionResult<T = unknown> {
   success: boolean;
@@ -120,25 +120,26 @@ export async function getProductTrackingReport(
 }>> {
   try {
     // Require authorization for viewing reports (admin, accountant, or warehouse staff with view permission)
-    const session = await requireAuth({ permissions: ['view:reports'] });
-    logger.info({ userId: session.user.id, userEmail: session.user.email, filters }, 'Đang xem báo cáo theo dõi sản phẩm');
+    const { organizationId, userId } = await requireOrgContext({ permissions: ['view:reports'] });
+    logger.info({ userId, organizationId, filters }, 'Đang xem báo cáo theo dõi sản phẩm');
 
     const page = filters.page ?? 1;
     const pageSize = filters.pageSize ?? 50;
     const offset = (page - 1) * pageSize;
 
-    // Build where conditions
-    const whereConditions = [];
-    
+    // Build where conditions - always filter by organization
+    const whereConditions: ReturnType<typeof eq>[] = [eq(shipmentItems.organizationId, organizationId)];
+
     if (filters.search) {
-      whereConditions.push(
-        or(
-          ilike(shipmentItems.qrCode, `%${filters.search}%`),
-          ilike(products.name, `%${filters.search}%`),
-          ilike(products.model, `%${filters.search}%`),
-          ilike(shipments.receiptNumber, `%${filters.search}%`)
-        )
+      const searchCondition = or(
+        ilike(shipmentItems.qrCode, `%${filters.search}%`),
+        ilike(products.name, `%${filters.search}%`),
+        ilike(products.model, `%${filters.search}%`),
+        ilike(shipments.receiptNumber, `%${filters.search}%`)
       );
+      if (searchCondition) {
+        whereConditions.push(searchCondition);
+      }
     }
 
     if (filters.shipmentId) {
@@ -157,9 +158,7 @@ export async function getProductTrackingReport(
       );
     }
 
-    const whereClause = whereConditions.length > 0 
-      ? and(...whereConditions) 
-      : undefined;
+    const whereClause = and(...whereConditions);
 
     // Query for items with all related data
     const query = db
@@ -337,8 +336,8 @@ export async function exportProductTrackingReport(
 ): Promise<ActionResult<{ url: string }>> {
   try {
     // Require authorization for exporting reports
-    const session = await requireAuth({ permissions: ['view:reports'] });
-    logger.info({ userId: session.user.id, userEmail: session.user.email, filters }, 'Đang xuất báo cáo theo dõi sản phẩm');
+    const { organizationId, userId } = await requireOrgContext({ permissions: ['view:reports'] });
+    logger.info({ userId, organizationId, filters }, 'Đang xuất báo cáo theo dõi sản phẩm');
 
     const result = await getProductTrackingReport({ ...filters, pageSize: 10000 });
     

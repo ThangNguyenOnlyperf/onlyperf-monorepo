@@ -2,7 +2,7 @@
 
 import { db } from '~/server/db';
 import { shipments, shipmentItems, products } from '~/server/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import {
   generateTemplatePDFWithQRCodes,
   generateTemplatePDFBase64,
@@ -11,9 +11,8 @@ import {
   type PDFGenerationOptions,
 } from '~/lib/pdf-template-overlay';
 import type { ActionResult } from './types';
-import { logger, getUserContext } from '~/lib/logger';
-import { auth } from '~/lib/auth';
-import { headers } from 'next/headers';
+import { logger } from '~/lib/logger';
+import { requireOrgContext } from '~/lib/authorization';
 
 /**
  * Result type for PDF generation
@@ -33,19 +32,19 @@ export async function generateShipmentTemplatePDFAction(
   options?: PDFGenerationOptions
 ): Promise<ActionResult<PDFGenerationResult>> {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-    const userContext = getUserContext(session);
+    const { organizationId, userId, userName } = await requireOrgContext();
 
     logger.info(
-      { ...userContext, shipmentId },
-      `User ${userContext.userName} generating template PDF for shipment`
+      { userId, userName, organizationId, shipmentId },
+      `User ${userName} generating template PDF for shipment`
     );
 
-    // Fetch shipment with items
+    // Fetch shipment with items (must be in same org)
     const shipment = await db.query.shipments.findFirst({
-      where: eq(shipments.id, shipmentId),
+      where: and(
+        eq(shipments.id, shipmentId),
+        eq(shipments.organizationId, organizationId)
+      ),
       with: {
         items: {
           with: {
@@ -57,8 +56,8 @@ export async function generateShipmentTemplatePDFAction(
 
     if (!shipment) {
       logger.error(
-        { ...userContext, shipmentId },
-        `Shipment not found for user ${userContext.userName}`
+        { userId, userName, organizationId, shipmentId },
+        `Shipment not found for user ${userName}`
       );
       return {
         success: false,
@@ -77,8 +76,8 @@ export async function generateShipmentTemplatePDFAction(
 
     if (!items || items.length === 0) {
       logger.warn(
-        { ...userContext, shipmentId },
-        `Shipment has no items for user ${userContext.userName}`
+        { userId, userName, organizationId, shipmentId },
+        `Shipment has no items for user ${userName}`
       );
       return {
         success: false,
@@ -93,8 +92,8 @@ export async function generateShipmentTemplatePDFAction(
 
     if (itemsWithQR.length === 0) {
       logger.warn(
-        { ...userContext, shipmentId },
-        `Shipment has no items with QR codes for user ${userContext.userName}`
+        { userId, userName, organizationId, shipmentId },
+        `Shipment has no items with QR codes for user ${userName}`
       );
       return {
         success: false,
@@ -118,12 +117,14 @@ export async function generateShipmentTemplatePDFAction(
 
     logger.info(
       {
-        ...userContext,
+        userId,
+        userName,
+        organizationId,
         shipmentId,
         itemCount: qrItems.length,
         pageCount,
       },
-      `User ${userContext.userName} successfully generated template PDF`
+      `User ${userName} successfully generated template PDF`
     );
 
     return {
@@ -136,14 +137,9 @@ export async function generateShipmentTemplatePDFAction(
       message: `Đã tạo PDF với ${qrItems.length} mã QR trên ${pageCount} trang`,
     };
   } catch (error) {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-    const userContext = getUserContext(session);
-
     logger.error(
-      { ...userContext, shipmentId, error },
-      `Error generating template PDF for user ${userContext.userName}`
+      { shipmentId, error },
+      'Error generating template PDF'
     );
 
     console.error('Error generating template PDF:', error);
@@ -162,14 +158,14 @@ export async function generateShipmentTemplatePDFBufferAction(
   options?: PDFGenerationOptions
 ): Promise<Buffer | null> {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-    const userContext = getUserContext(session);
+    const { organizationId, userId, userName } = await requireOrgContext();
 
-    // Fetch shipment with items
+    // Fetch shipment with items (must be in same org)
     const shipment = await db.query.shipments.findFirst({
-      where: eq(shipments.id, shipmentId),
+      where: and(
+        eq(shipments.id, shipmentId),
+        eq(shipments.organizationId, organizationId)
+      ),
       with: {
         items: {
           with: {
@@ -218,12 +214,14 @@ export async function generateShipmentTemplatePDFBufferAction(
 
     logger.info(
       {
-        ...userContext,
+        userId,
+        userName,
+        organizationId,
         shipmentId,
         itemCount: qrItems.length,
         bufferSize: pdfBuffer.length,
       },
-      `User ${userContext.userName} generated template PDF buffer`
+      `User ${userName} generated template PDF buffer`
     );
 
     return pdfBuffer;

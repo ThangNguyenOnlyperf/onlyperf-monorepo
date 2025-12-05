@@ -3,11 +3,10 @@
 import { db } from '~/server/db';
 import { orders, orderItems, customers, products, shipmentItems, providers, user, colors } from '~/server/db/schema';
 import { eq, desc, sql, and, gte, lte, or, ilike } from 'drizzle-orm';
-import { auth } from '~/lib/auth';
-import { headers } from 'next/headers';
 import { generateOrderExcel } from '~/lib/excel-export/orderExport';
 import type { CartItem, CustomerInfo } from '~/components/outbound/types';
 import { logger } from '~/lib/logger';
+import { requireOrgContext } from '~/lib/authorization';
 
 interface ActionResult<T = unknown> {
   success: boolean;
@@ -67,7 +66,9 @@ export interface OrderItemDetail {
 // Get order by ID with all details
 export async function getOrderById(orderId: string): Promise<ActionResult<OrderDetail>> {
   try {
-    // Get order with customer, provider, and processed by user
+    const { organizationId } = await requireOrgContext();
+
+    // Get order with customer, provider, and processed by user (must be in same org)
     const orderData = await db
       .select({
         order: orders,
@@ -79,7 +80,10 @@ export async function getOrderById(orderId: string): Promise<ActionResult<OrderD
       .leftJoin(customers, eq(orders.customerId, customers.id))
       .leftJoin(providers, eq(orders.providerId, providers.id))
       .leftJoin(user, eq(orders.processedBy, user.id))
-      .where(eq(orders.id, orderId))
+      .where(and(
+        eq(orders.id, orderId),
+        eq(orders.organizationId, organizationId)
+      ))
       .limit(1);
 
     if (orderData.length === 0 || !orderData[0]) {
@@ -98,14 +102,17 @@ export async function getOrderById(orderId: string): Promise<ActionResult<OrderD
       };
     }
 
-    // Get order items with product details
+    // Get order items with product details (filter by org)
     const items = await db
       .select()
       .from(orderItems)
       .leftJoin(products, eq(orderItems.productId, products.id))
       .leftJoin(shipmentItems, eq(orderItems.shipmentItemId, shipmentItems.id))
       .leftJoin(colors, eq(colors.id, products.colorId))
-      .where(eq(orderItems.orderId, orderId));
+      .where(and(
+        eq(orderItems.orderId, orderId),
+        eq(orderItems.organizationId, organizationId)
+      ));
 
     const orderItemDetails: OrderItemDetail[] = items.map(item => ({
       id: item.order_items.id,
@@ -262,28 +269,33 @@ export interface OrderStats {
 // Get order statistics
 export async function getOrderStats(): Promise<ActionResult<OrderStats>> {
   try {
+    const { organizationId } = await requireOrgContext();
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const todayISO = today.toISOString();
-    
-    // Get total orders and revenue
+
+    // Get total orders and revenue for this org
     const totalStats = await db
       .select({
         count: sql<number>`count(*)::int`,
         totalRevenue: sql<number>`COALESCE(sum(${orders.totalAmount}), 0)::int`,
       })
-      .from(orders);
-    
-    // Get today's orders and revenue
+      .from(orders)
+      .where(eq(orders.organizationId, organizationId));
+
+    // Get today's orders and revenue for this org
     const todayStats = await db
       .select({
         count: sql<number>`count(*)::int`,
         totalRevenue: sql<number>`COALESCE(sum(${orders.totalAmount}), 0)::int`,
       })
       .from(orders)
-      .where(gte(orders.createdAt, today));
-    
-    // Get top customers
+      .where(and(
+        eq(orders.organizationId, organizationId),
+        gte(orders.createdAt, today)
+      ));
+
+    // Get top customers for this org
     const topCustomersData = await db
       .select({
         customerId: orders.customerId,
@@ -294,6 +306,7 @@ export async function getOrderStats(): Promise<ActionResult<OrderStats>> {
       })
       .from(orders)
       .leftJoin(customers, eq(orders.customerId, customers.id))
+      .where(eq(orders.organizationId, organizationId))
       .groupBy(orders.customerId, customers.name, customers.phone)
       .orderBy(desc(sql`sum(${orders.totalAmount})`))
       .limit(5);
@@ -338,30 +351,21 @@ export async function getOrdersList(
   } = {}
 ): Promise<ActionResult<{ orders: OrderDetail[]; total: number }>> {
   try {
+    const { organizationId } = await requireOrgContext();
     const { limit = 50, offset = 0, search, startDate, endDate, customerType } = options;
 
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session?.user) {
-      return {
-        success: false,
-        message: 'Bạn cần đăng nhập để xem danh sách đơn hàng',
-      };
-    }
-
-    // Build where conditions
-    const conditions = [];
+    // Build where conditions - always filter by organization
+    const conditions: ReturnType<typeof eq>[] = [eq(orders.organizationId, organizationId)];
 
     if (search) {
-      conditions.push(
-        or(
-          ilike(orders.orderNumber, `%${search}%`),
-          ilike(customers.name, `%${search}%`),
-          ilike(customers.phone, `%${search}%`)
-        )
+      const searchCondition = or(
+        ilike(orders.orderNumber, `%${search}%`),
+        ilike(customers.name, `%${search}%`),
+        ilike(customers.phone, `%${search}%`)
       );
+      if (searchCondition) {
+        conditions.push(searchCondition);
+      }
     }
 
     if (startDate) {
@@ -378,24 +382,20 @@ export async function getOrdersList(
       conditions.push(eq(orders.customerType, customerType));
     }
 
-    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    const whereClause = and(...conditions);
 
     // Get total count
-    const countQuery = db
+    const totalResult = await db
       .select({ count: sql<number>`count(DISTINCT ${orders.id})::int` })
       .from(orders)
       .leftJoin(customers, eq(orders.customerId, customers.id))
-      .leftJoin(orderItems, eq(orders.id, orderItems.orderId));
+      .leftJoin(orderItems, eq(orders.id, orderItems.orderId))
+      .where(whereClause);
 
-    if (whereClause) {
-      countQuery.where(whereClause);
-    }
-
-    const totalResult = await countQuery;
     const total = totalResult[0]?.count ?? 0;
 
     // Get orders with pagination and item count (optimized - single query with aggregation)
-    const baseQuery = db
+    const ordersData = await db
       .select({
         order: orders,
         customer: customers,
@@ -408,19 +408,13 @@ export async function getOrdersList(
       .leftJoin(providers, eq(orders.providerId, providers.id))
       .leftJoin(user, eq(orders.processedBy, user.id))
       .leftJoin(orderItems, eq(orders.id, orderItems.orderId))
+      .where(whereClause)
       .groupBy(
         orders.id,
         customers.id,
         providers.id,
         user.id
       )
-      .$dynamic();
-
-    if (whereClause) {
-      baseQuery.where(whereClause);
-    }
-
-    const ordersData = await baseQuery
       .orderBy(desc(orders.createdAt))
       .limit(limit)
       .offset(offset);

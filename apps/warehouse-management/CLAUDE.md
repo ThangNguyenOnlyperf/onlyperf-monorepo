@@ -13,11 +13,42 @@ Since AI agents are not installed, here are the optimal approaches for different
 
 #### API & Backend Development
 - **Focus Areas**: Server actions, database queries, authentication
-- **Best Practices**: 
+- **Best Practices**:
   - Use server actions in `/src/actions/` following the existing pattern
   - Implement proper TypeScript types and Zod validation
   - Return consistent `ActionResult` type
   - Handle Vietnamese language for user messages
+
+#### Multi-Tenancy (CRITICAL)
+- **ALWAYS use `requireOrgContext()` instead of `requireAuth()`** for all server actions
+- This ensures proper organization scoping for all database operations
+- Pattern for server actions:
+  ```typescript
+  import { requireOrgContext } from "~/lib/authorization";
+
+  export async function myAction() {
+    const { organizationId, userId, userName } = await requireOrgContext();
+
+    // INSERT: Always include organizationId
+    await db.insert(table).values({ organizationId, ...data });
+
+    // SELECT: Always filter by organizationId
+    await db.select().from(table).where(eq(table.organizationId, organizationId));
+
+    // UPDATE/DELETE: Always include org filter
+    await db.update(table).set(data).where(and(
+      eq(table.id, id),
+      eq(table.organizationId, organizationId)
+    ));
+  }
+  ```
+- **For webhooks** (no user session): Accept `organizationId` as parameter
+  ```typescript
+  export async function webhookAction(payload: Data, organizationId: string) {
+    // Use organizationId directly, don't call requireOrgContext()
+  }
+  ```
+- **Permissions**: Use `requireOrgContext({ permissions: ['view:reports'] })` for permission checks
 
 #### Frontend Components
 - **Focus Areas**: React components, forms, UI/UX

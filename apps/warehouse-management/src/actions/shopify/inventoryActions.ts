@@ -93,6 +93,7 @@ export async function syncShopifyProductAction(
     const [productWithColor] = await db
       .select({
         id: products.id,
+        organizationId: products.organizationId,
         name: products.name,
         brand: products.brand,
         brandId: products.brandId,

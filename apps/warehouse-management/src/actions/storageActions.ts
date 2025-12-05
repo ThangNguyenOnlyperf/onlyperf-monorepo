@@ -2,11 +2,11 @@
 
 import { db } from '~/server/db';
 import { storages } from '~/server/db/schema';
-import { eq, desc, sql, asc } from 'drizzle-orm';
+import { eq, desc, sql, asc, and } from 'drizzle-orm';
 import type { ActionResult } from './types';
 import type { PaginationParams, PaginatedResult } from '~/lib/queries/paginateQuery';
 import { logger } from '~/lib/logger';
-import { requireAuth } from '~/lib/authorization';
+import { requireOrgContext } from '~/lib/authorization';
 
 export type Storage = typeof storages.$inferSelect;
 export type StorageFormData = {
@@ -20,23 +20,23 @@ export async function createStorageAction(
   data: StorageFormData
 ): Promise<ActionResult<Storage>> {
   try {
-    // Require admin role to create storage locations
-    const session = await requireAuth({ roles: ['admin'] });
-    logger.info({ storageName: data.name, location: data.location, capacity: data.capacity, userId: session.user.id, userEmail: session.user.email }, 'Đang tạo kho');
+    const { organizationId, userId } = await requireOrgContext({ permissions: ['create:storages'] });
+    logger.info({ storageName: data.name, location: data.location, capacity: data.capacity, userId, organizationId }, 'Đang tạo kho');
 
     const storageId = `stg_${Date.now()}`;
 
-    logger.info({ storageId, storageName: data.name }, 'Đang thêm kho vào cơ sở dữ liệu');
+    logger.info({ storageId, storageName: data.name, organizationId }, 'Đang thêm kho vào cơ sở dữ liệu');
 
     const [newStorage] = await db.insert(storages).values({
       id: storageId,
+      organizationId,
       name: data.name,
       location: data.location,
       capacity: data.capacity,
       priority: data.priority,
     }).returning();
 
-    logger.info({ storageId, storageName: data.name }, 'Tạo kho thành công');
+    logger.info({ storageId, storageName: data.name, organizationId }, 'Tạo kho thành công');
 
     return {
       success: true,
@@ -44,19 +44,10 @@ export async function createStorageAction(
       data: newStorage,
     };
   } catch (error) {
-    // Handle authorization errors
-    if (error instanceof Error && error.message.includes('quyền')) {
-      logger.warn({ error: error.message, storageName: data.name }, 'Không có quyền tạo kho');
-      return {
-        success: false,
-        error: error.message,
-      };
-    }
-
     logger.error({ error, storageName: data.name }, 'Lỗi khi tạo kho');
     return {
       success: false,
-      error: 'Lỗi khi tạo kho',
+      error: error instanceof Error ? error.message : 'Lỗi khi tạo kho',
     };
   }
 }
@@ -66,19 +57,21 @@ export async function updateStorageAction(
   data: StorageFormData
 ): Promise<ActionResult<Storage>> {
   try {
-    // Require admin role to update storage locations
-    const session = await requireAuth({ roles: ['admin'] });
-    logger.info({ storageId: id, newName: data.name, newLocation: data.location, userId: session.user.id, userEmail: session.user.email }, 'Đang cập nhật kho');
+    const { organizationId, userId } = await requireOrgContext({ permissions: ['update:storages'] });
+    logger.info({ storageId: id, newName: data.name, newLocation: data.location, userId, organizationId }, 'Đang cập nhật kho');
 
-    // Get old storage data for logging
+    // Get old storage data for logging (must be in same org)
     const [oldStorage] = await db
       .select()
       .from(storages)
-      .where(eq(storages.id, id))
+      .where(and(
+        eq(storages.id, id),
+        eq(storages.organizationId, organizationId)
+      ))
       .limit(1);
 
     if (!oldStorage) {
-      logger.warn({ storageId: id }, 'Không tìm thấy kho để cập nhật');
+      logger.warn({ storageId: id, organizationId }, 'Không tìm thấy kho để cập nhật');
       return {
         success: false,
         error: 'Không tìm thấy kho',
@@ -94,11 +87,14 @@ export async function updateStorageAction(
         priority: data.priority,
         updatedAt: new Date(),
       })
-      .where(eq(storages.id, id))
+      .where(and(
+        eq(storages.id, id),
+        eq(storages.organizationId, organizationId)
+      ))
       .returning();
 
     if (!updatedStorage) {
-      logger.warn({ storageId: id }, 'Không tìm thấy kho để cập nhật sau khi truy vấn');
+      logger.warn({ storageId: id, organizationId }, 'Không tìm thấy kho để cập nhật sau khi truy vấn');
       return {
         success: false,
         error: 'Không tìm thấy kho',
@@ -107,6 +103,7 @@ export async function updateStorageAction(
 
     logger.info({
       storageId: id,
+      organizationId,
       oldName: oldStorage.name,
       newName: data.name,
       oldLocation: oldStorage.location,
@@ -121,19 +118,10 @@ export async function updateStorageAction(
       data: updatedStorage,
     };
   } catch (error) {
-    // Handle authorization errors
-    if (error instanceof Error && error.message.includes('quyền')) {
-      logger.warn({ error: error.message, storageId: id }, 'Không có quyền cập nhật kho');
-      return {
-        success: false,
-        error: error.message,
-      };
-    }
-
     logger.error({ error, storageId: id, newName: data.name }, 'Lỗi khi cập nhật kho');
     return {
       success: false,
-      error: 'Lỗi khi cập nhật kho',
+      error: error instanceof Error ? error.message : 'Lỗi khi cập nhật kho',
     };
   }
 }
@@ -142,9 +130,8 @@ export async function deleteStorageAction(
   id: string
 ): Promise<ActionResult<boolean>> {
   try {
-    // Require admin role to delete storage locations
-    const session = await requireAuth({ roles: ['admin'] });
-    logger.info({ storageId: id, userId: session.user.id, userEmail: session.user.email }, 'Đang xóa kho');
+    const { organizationId, userId } = await requireOrgContext({ permissions: ['delete:storages'] });
+    logger.info({ storageId: id, userId, organizationId }, 'Đang xóa kho');
 
     const [storageWithCapacity] = await db
       .select({
@@ -153,11 +140,14 @@ export async function deleteStorageAction(
         usedCapacity: storages.usedCapacity,
       })
       .from(storages)
-      .where(eq(storages.id, id))
+      .where(and(
+        eq(storages.id, id),
+        eq(storages.organizationId, organizationId)
+      ))
       .limit(1);
 
     if (!storageWithCapacity) {
-      logger.warn({ storageId: id }, 'Không tìm thấy kho để xóa');
+      logger.warn({ storageId: id, organizationId }, 'Không tìm thấy kho để xóa');
       return {
         success: false,
         error: 'Không tìm thấy kho',
@@ -176,10 +166,14 @@ export async function deleteStorageAction(
       };
     }
 
-    await db.delete(storages).where(eq(storages.id, id));
+    await db.delete(storages).where(and(
+      eq(storages.id, id),
+      eq(storages.organizationId, organizationId)
+    ));
 
     logger.info({
       storageId: id,
+      organizationId,
       storageName: storageWithCapacity.name,
       location: storageWithCapacity.location
     }, 'Xóa kho thành công');
@@ -190,19 +184,10 @@ export async function deleteStorageAction(
       data: true,
     };
   } catch (error) {
-    // Handle authorization errors
-    if (error instanceof Error && error.message.includes('quyền')) {
-      logger.warn({ error: error.message, storageId: id }, 'Không có quyền xóa kho');
-      return {
-        success: false,
-        error: error.message,
-      };
-    }
-
     logger.error({ error, storageId: id }, 'Lỗi khi xóa kho');
     return {
       success: false,
-      error: 'Lỗi khi xóa kho',
+      error: error instanceof Error ? error.message : 'Lỗi khi xóa kho',
     };
   }
 }
@@ -211,17 +196,19 @@ export async function getStoragesAction(
   paginationParams?: PaginationParams
 ): Promise<ActionResult<PaginatedResult<Storage>>> {
   try {
+    const { organizationId } = await requireOrgContext();
     const { page = 1, pageSize = 100, sortBy = 'priority', sortOrder = 'desc' } = paginationParams ?? {};
     const offset = (page - 1) * pageSize;
 
     const countResult = await db
       .select({ count: sql<number>`count(*)::int` })
-      .from(storages);
+      .from(storages)
+      .where(eq(storages.organizationId, organizationId));
     const totalItems = countResult?.[0]?.count ?? 0;
 
     let finalQuery;
-    const baseQuery = db.select().from(storages);
-    
+    const baseQuery = db.select().from(storages).where(eq(storages.organizationId, organizationId));
+
     if (sortBy && (storages as any)[sortBy]) {
       const sortColumn = (storages as any)[sortBy];
       if (sortBy === 'priority') {
@@ -255,7 +242,7 @@ export async function getStoragesAction(
     logger.error({ error }, 'Lỗi khi lấy danh sách kho');
     return {
       success: false,
-      error: 'Lỗi khi lấy danh sách kho',
+      error: error instanceof Error ? error.message : 'Lỗi khi lấy danh sách kho',
     };
   }
 }
@@ -265,10 +252,15 @@ export async function getStorageByIdAction(
   id: string
 ): Promise<ActionResult<Storage>> {
   try {
+    const { organizationId } = await requireOrgContext();
+
     const [storage] = await db
       .select()
       .from(storages)
-      .where(eq(storages.id, id))
+      .where(and(
+        eq(storages.id, id),
+        eq(storages.organizationId, organizationId)
+      ))
       .limit(1);
 
     if (!storage) {
@@ -287,7 +279,7 @@ export async function getStorageByIdAction(
     logger.error({ error }, 'Lỗi khi lấy thông tin kho');
     return {
       success: false,
-      error: 'Lỗi khi lấy thông tin kho',
+      error: error instanceof Error ? error.message : 'Lỗi khi lấy thông tin kho',
     };
   }
 }
@@ -299,13 +291,16 @@ export async function getStorageMetricsAction(): Promise<ActionResult<{
   utilizationRate: number;
 }>> {
   try {
+    const { organizationId } = await requireOrgContext();
+
     const metrics = await db
       .select({
         totalStorages: sql<number>`count(*)::int`,
         totalCapacity: sql<number>`coalesce(sum(${storages.capacity}), 0)::int`,
         totalUsedCapacity: sql<number>`coalesce(sum(${storages.usedCapacity}), 0)::int`,
       })
-      .from(storages);
+      .from(storages)
+      .where(eq(storages.organizationId, organizationId));
 
     const result = metrics[0] || {
       totalStorages: 0,
@@ -329,7 +324,7 @@ export async function getStorageMetricsAction(): Promise<ActionResult<{
     logger.error({ error }, 'Lỗi khi lấy thống kê kho');
     return {
       success: false,
-      error: 'Lỗi khi lấy thống kê kho',
+      error: error instanceof Error ? error.message : 'Lỗi khi lấy thống kê kho',
     };
   }
 }

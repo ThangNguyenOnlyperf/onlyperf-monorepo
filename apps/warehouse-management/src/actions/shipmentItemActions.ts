@@ -2,9 +2,10 @@
 
 import { db } from '~/server/db';
 import { shipmentItems, products, shipments, storages, colors } from '~/server/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import type { ActionResult } from './types';
 import { logger } from '~/lib/logger';
+import { requireOrgContext } from '~/lib/authorization';
 
 export interface ShipmentItemDetails {
   id: string;
@@ -47,6 +48,8 @@ export interface ShipmentItemDetails {
 
 export async function getShipmentItemDetailsAction(itemId: string): Promise<ActionResult<ShipmentItemDetails>> {
   try {
+    const { organizationId } = await requireOrgContext();
+
     const result = await db
       .select({
         item: shipmentItems,
@@ -60,7 +63,10 @@ export async function getShipmentItemDetailsAction(itemId: string): Promise<Acti
       .innerJoin(shipments, eq(shipmentItems.shipmentId, shipments.id))
       .leftJoin(storages, eq(shipmentItems.storageId, storages.id))
       .leftJoin(colors, eq(colors.id, products.colorId))
-      .where(eq(shipmentItems.id, itemId))
+      .where(and(
+        eq(shipmentItems.id, itemId),
+        eq(shipmentItems.organizationId, organizationId)
+      ))
       .limit(1);
 
     if (result.length === 0) {
@@ -131,13 +137,18 @@ export async function updateShipmentItemStatusAction(
   status: 'pending' | 'received' | 'sold' | 'shipped'
 ): Promise<ActionResult> {
   try {
+    const { organizationId } = await requireOrgContext({ permissions: ['update:shipment-items'] });
+
     await db
       .update(shipmentItems)
       .set({
         status,
         scannedAt: status === 'received' ? new Date() : undefined,
       })
-      .where(eq(shipmentItems.id, itemId));
+      .where(and(
+        eq(shipmentItems.id, itemId),
+        eq(shipmentItems.organizationId, organizationId)
+      ));
 
     return {
       success: true,

@@ -8,19 +8,19 @@ import type { ActionResult, ShipmentResult, ProcessedItem, GroupedQRItems } from
 import { queueShipmentInventorySync } from './shopify/inventoryActions';
 import type { ShipmentFormData } from '~/components/shipments/ShipmentSchema';
 import type { PaginationParams, PaginatedResult } from '~/lib/queries/paginateQuery';
-import { logger, getUserContext } from '~/lib/logger';
-import { auth } from '~/lib/auth';
-import { headers } from 'next/headers';
+import { logger } from '~/lib/logger';
 import { createShopifyProductFromWarehouse } from '~/lib/shopify/products';
 import { revalidatePath } from 'next/cache';
 import { isPackableType } from '~/lib/constants/product-types';
+import { requireOrgContext } from '~/lib/authorization';
 
 // Helper: Find or create a pack product from a base product
 // Uses insert-first pattern to avoid race conditions (relies on unique constraint)
 async function findOrCreatePackProduct(
   tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
   baseProduct: typeof products.$inferSelect,
-  packSize: number
+  packSize: number,
+  organizationId: string
 ): Promise<typeof products.$inferSelect> {
   const packProductId = `prd_${Date.now()}_pack${packSize}`;
   const packModel = `${baseProduct.model} ${packSize}-Pack`;
@@ -32,6 +32,7 @@ async function findOrCreatePackProduct(
       .insert(products)
       .values({
         id: packProductId,
+        organizationId,
         name: packProductName,
         brand: baseProduct.brand,
         brandId: baseProduct.brandId,
@@ -89,6 +90,7 @@ async function findOrCreatePackProduct(
     .from(products)
     .where(
       and(
+        eq(products.organizationId, organizationId),
         eq(products.baseProductId, baseProduct.id),
         eq(products.packSize, packSize)
       )
@@ -106,16 +108,13 @@ export async function createShipmentAction(
   data: ShipmentFormData
 ): Promise<ActionResult<ShipmentResult>> {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-    const userContext = getUserContext(session);
+    const { organizationId, userId, userName } = await requireOrgContext({ permissions: ['create:shipments'] });
 
-    logger.info({ ...userContext, receiptNumber: data.receiptNumber, supplierName: data.supplierName, itemCount: data.items.length }, `User ${userContext.userName} creating shipment`);
+    logger.info({ userId, userName, organizationId, receiptNumber: data.receiptNumber, supplierName: data.supplierName, itemCount: data.items.length }, `User ${userName} creating shipment`);
     const { receiptNumber, receiptDate, supplierName, providerId, items } = data;
 
     if (!receiptNumber || !receiptDate || !supplierName || !items || items.length === 0) {
-      logger.error({ ...userContext, receiptNumber: data.receiptNumber }, `User ${userContext.userName} failed to create shipment`);
+      logger.error({ userId, userName, organizationId, receiptNumber: data.receiptNumber }, `User ${userName} failed to create shipment`);
       return {
         success: false,
         error: 'Thiếu thông tin bắt buộc',
@@ -127,6 +126,7 @@ export async function createShipmentAction(
       const shipmentId = `shp_${Date.now()}`;
       await tx.insert(shipments).values({
         id: shipmentId,
+        organizationId,
         receiptNumber,
         receiptDate: receiptDate,
         supplierName,
@@ -140,11 +140,14 @@ export async function createShipmentAction(
 
       for (const item of items) {
         // item.brand now contains the product ID (temporary solution)
-        // Find the product in database
+        // Find the product in database (must be in same org)
         const [product] = await tx
           .select()
           .from(products)
-          .where(eq(products.id, item.brand))
+          .where(and(
+            eq(products.id, item.brand),
+            eq(products.organizationId, organizationId)
+          ))
           .limit(1);
 
         let productId: string;
@@ -172,7 +175,7 @@ export async function createShipmentAction(
             }
 
             // Find or create the pack product
-            const packProduct = await findOrCreatePackProduct(tx, product, item.packSize!);
+            const packProduct = await findOrCreatePackProduct(tx, product, item.packSize!, organizationId);
 
             productId = packProduct.id;
             brandName = packProduct.brand;
@@ -208,6 +211,7 @@ export async function createShipmentAction(
 
           await tx.insert(shipmentItems).values({
             id: itemId,
+            organizationId,
             shipmentId,
             productId,
             quantity: 1,
@@ -234,12 +238,14 @@ export async function createShipmentAction(
     });
 
     logger.info({
-      ...userContext,
+      userId,
+      userName,
+      organizationId,
       shipmentId: result.shipmentId,
       receiptNumber,
       supplierName,
       itemCount: result.items.length,
-    }, `User ${userContext.userName} created shipment ${result.shipmentId} with ${result.items.length} items`);
+    }, `User ${userName} created shipment ${result.shipmentId} with ${result.items.length} items`);
 
     // Revalidate paths (products may have new pack products)
     revalidatePath('/products');
@@ -252,11 +258,7 @@ export async function createShipmentAction(
       data: result,
     };
   } catch (error) {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-    const userContext = getUserContext(session);
-    logger.error({ ...userContext, error, receiptNumber: data.receiptNumber }, `User ${userContext.userName} failed to create shipment`);
+    logger.error({ error, receiptNumber: data.receiptNumber }, 'Failed to create shipment');
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return {
       success: false,
@@ -273,11 +275,16 @@ export async function getShipmentWithItemsAction(
   groupedItems: GroupedQRItems[];
 }>> {
   try {
-    // Fetch shipment details
+    const { organizationId } = await requireOrgContext();
+
+    // Fetch shipment details (must be in same org)
     const shipmentData = await db
       .select()
       .from(shipments)
-      .where(eq(shipments.id, shipmentId))
+      .where(and(
+        eq(shipments.id, shipmentId),
+        eq(shipments.organizationId, organizationId)
+      ))
       .limit(1);
 
     if (!shipmentData || shipmentData.length === 0) {
@@ -287,7 +294,7 @@ export async function getShipmentWithItemsAction(
       };
     }
 
-    // Fetch shipment items with product details
+    // Fetch shipment items with product details (filter by org)
     const items = await db
       .select({
         id: shipmentItems.id,
@@ -301,7 +308,10 @@ export async function getShipmentWithItemsAction(
       })
       .from(shipmentItems)
       .leftJoin(products, eq(shipmentItems.productId, products.id))
-      .where(eq(shipmentItems.shipmentId, shipmentId))
+      .where(and(
+        eq(shipmentItems.shipmentId, shipmentId),
+        eq(shipmentItems.organizationId, organizationId)
+      ))
       .orderBy(shipmentItems.createdAt);
 
     // Group items by brand and model
@@ -377,6 +387,7 @@ export async function getShipmentsWithItemsAction(
   paginationParams?: PaginationParams
 ): Promise<ActionResult<PaginatedResult<ShipmentWithItems>>> {
   try {
+    const { organizationId } = await requireOrgContext();
     const { page = 1, pageSize = 100, sortBy = 'createdAt', sortOrder = 'desc' } = paginationParams || {};
     const offset = (page - 1) * pageSize;
 
@@ -396,45 +407,40 @@ export async function getShipmentsWithItemsAction(
       .leftJoin(shipmentItems, eq(shipments.id, shipmentItems.shipmentId))
       .groupBy(shipments.id);
 
-    // Apply filters
-    const conditions = [];
-    
+    // Apply filters - always filter by organization
+    const conditions = [eq(shipments.organizationId, organizationId)];
+
     if (filters?.ids && filters.ids.length > 0) {
       conditions.push(sql`${shipments.id} = ANY(${filters.ids})`);
     }
-    
+
     if (filters?.search) {
       conditions.push(
         sql`(${shipments.receiptNumber} ILIKE ${`%${filters.search}%`} OR ${shipments.supplierName} ILIKE ${`%${filters.search}%`})`
       );
     }
-    
+
     if (filters?.status && filters.status !== 'all') {
       conditions.push(eq(shipments.status, filters.status));
     }
-    
+
     if (filters?.startDate) {
       conditions.push(gte(shipments.receiptDate, filters.startDate));
     }
-    
+
     if (filters?.endDate) {
       conditions.push(lte(shipments.receiptDate, filters.endDate));
     }
-    
-    const query = conditions.length > 0 
-      ? baseQuery.where(and(...conditions)) 
-      : baseQuery;
+
+    const query = baseQuery.where(and(...conditions));
 
     // Get total count with same filters
     const countQuery = db
       .select({ count: sql<number>`count(DISTINCT ${shipments.id})::int` })
       .from(shipments)
-      .leftJoin(shipmentItems, eq(shipments.id, shipmentItems.shipmentId));
-    
-    if (conditions.length > 0) {
-      countQuery.where(and(...conditions));
-    }
-    
+      .leftJoin(shipmentItems, eq(shipments.id, shipmentItems.shipmentId))
+      .where(and(...conditions));
+
     const countResult = await countQuery;
     const totalItems = countResult?.[0]?.count ?? 0;
 
@@ -478,6 +484,8 @@ export async function getShipmentsWithItemsAction(
 // Get shipment metrics for dashboard
 export async function getShipmentMetricsAction(): Promise<ActionResult<ShipmentMetrics>> {
   try {
+    const { organizationId } = await requireOrgContext();
+
     const [metricsResult] = await db
       .select({
         totalShipments: sql<number>`count(distinct ${shipments.id})::int`,
@@ -487,7 +495,8 @@ export async function getShipmentMetricsAction(): Promise<ActionResult<ShipmentM
         totalItems: sql<number>`count(${shipmentItems.id})::int`,
       })
       .from(shipments)
-      .leftJoin(shipmentItems, eq(shipments.id, shipmentItems.shipmentId));
+      .leftJoin(shipmentItems, eq(shipments.id, shipmentItems.shipmentId))
+      .where(eq(shipments.organizationId, organizationId));
 
     return {
       success: true,
@@ -508,13 +517,18 @@ export async function updateShipmentStatusAction(
   newStatus: 'pending' | 'received' | 'completed'
 ): Promise<ActionResult<void>> {
   try {
+    const { organizationId } = await requireOrgContext({ permissions: ['update:shipments'] });
+
     await db
       .update(shipments)
-      .set({ 
+      .set({
         status: newStatus,
         updatedAt: new Date(),
       })
-      .where(eq(shipments.id, shipmentId));
+      .where(and(
+        eq(shipments.id, shipmentId),
+        eq(shipments.organizationId, organizationId)
+      ));
 
     if (newStatus === 'received') {
       void queueShipmentInventorySync(shipmentId);
@@ -538,6 +552,8 @@ export async function getShipmentByIdAction(
   id: string
 ): Promise<ActionResult<ShipmentWithItems>> {
   try {
+    const { organizationId } = await requireOrgContext();
+
     const [shipmentData] = await db
       .select({
         id: shipments.id,
@@ -552,7 +568,10 @@ export async function getShipmentByIdAction(
       })
       .from(shipments)
       .leftJoin(shipmentItems, eq(shipments.id, shipmentItems.shipmentId))
-      .where(eq(shipments.id, id))
+      .where(and(
+        eq(shipments.id, id),
+        eq(shipments.organizationId, organizationId)
+      ))
       .groupBy(shipments.id);
 
     if (!shipmentData) {

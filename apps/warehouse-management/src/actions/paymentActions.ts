@@ -5,6 +5,7 @@ import { orders, customers, sepayTransactions } from '~/server/db/schema';
 import { eq, desc, and } from 'drizzle-orm';
 import type { ActionResult } from './types';
 import { logger } from '~/lib/logger';
+import { requireOrgContext } from '~/lib/authorization';
 
 // Enhanced payment interfaces for static approach
 export interface CreateOrderRequest {
@@ -59,6 +60,8 @@ export async function generatePaymentCode(orderId: string): Promise<string> {
  */
 export async function createOrderWithPayment(request: CreateOrderRequest): Promise<CreateOrderResponse> {
   try {
+    const { organizationId } = await requireOrgContext();
+
     // Generate unique order ID and number
     const orderId = `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const orderNumber = `ORD${Date.now().toString().substr(-8)}`;
@@ -68,6 +71,7 @@ export async function createOrderWithPayment(request: CreateOrderRequest): Promi
     const customerId = `customer_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     await db.insert(customers).values({
       id: customerId,
+      organizationId,
       name: request.customerName,
       phone: request.customerPhone,
       address: request.customerAddress || null,
@@ -76,6 +80,7 @@ export async function createOrderWithPayment(request: CreateOrderRequest): Promi
     // Create order with payment code
     await db.insert(orders).values({
       id: orderId,
+      organizationId,
       orderNumber,
       customerId,
       totalAmount: request.totalAmount,
@@ -135,10 +140,15 @@ export async function generateSepayQRUrl(order: {
  */
 export async function checkPaymentStatus(orderId: string): Promise<PaymentStatusResponse> {
   try {
+    const { organizationId } = await requireOrgContext();
+
     const orderData = await db
       .select({ paymentStatus: orders.paymentStatus })
       .from(orders)
-      .where(eq(orders.id, orderId))
+      .where(and(
+        eq(orders.id, orderId),
+        eq(orders.organizationId, organizationId)
+      ))
       .limit(1);
 
     if (orderData.length === 0 || !orderData[0]) {
@@ -193,10 +203,33 @@ export async function processSepayWebhookEnhanced(data: SepayWebhookDataEnhanced
 
     const paymentCode = `PERF${matches[1]}`;
 
-    // Store the transaction first
+    // Find order matching payment code, amount, and status FIRST (to get organizationId)
+    const matchingOrders = await db
+      .select()
+      .from(orders)
+      .where(
+        and(
+          eq(orders.paymentCode, paymentCode),
+          eq(orders.totalAmount, data.transferAmount),
+          eq(orders.paymentStatus, 'Unpaid')
+        )
+      )
+      .limit(1);
+
+    if (matchingOrders.length === 0 || !matchingOrders[0]) {
+      return {
+        success: false,
+        message: `Order not found. Payment code: ${paymentCode}, Amount: ${data.transferAmount}`,
+      };
+    }
+
+    const order = matchingOrders[0];
+
+    // Store the transaction with organizationId from the matching order
     const transactionId = `sepay_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     await db.insert(sepayTransactions).values({
       id: transactionId,
+      organizationId: order.organizationId,
       sepayTransactionId: data.id.toString(),
       gateway: data.gateway,
       transactionDate: new Date(data.transactionDate),
@@ -211,37 +244,9 @@ export async function processSepayWebhookEnhanced(data: SepayWebhookDataEnhanced
       body: JSON.stringify(data),
       transferType: data.transferType,
       transferAmount: data.transferAmount.toString(),
-      processed: false,
+      orderId: order.id,
+      processed: true,
     });
-
-    // Find order matching payment code, amount, and status (like PHP logic)
-    const matchingOrders = await db
-      .select()
-      .from(orders)
-      .where(
-        and(
-          eq(orders.paymentCode, paymentCode),
-          eq(orders.totalAmount, data.transferAmount),
-          eq(orders.paymentStatus, 'Unpaid')
-        )
-      )
-      .limit(1);
-
-    if (matchingOrders.length === 0) {
-      return {
-        success: false,
-        message: `Order not found. Payment code: ${paymentCode}, Amount: ${data.transferAmount}`,
-      };
-    }
-
-    const order = matchingOrders[0];
-
-    if (!order) {
-      return {
-        success: false,
-        message: `Order not found. Payment code: ${paymentCode}, Amount: ${data.transferAmount}`,
-      };
-    }
 
     // Update order payment status
     await db
@@ -251,16 +256,6 @@ export async function processSepayWebhookEnhanced(data: SepayWebhookDataEnhanced
         updatedAt: new Date(),
       })
       .where(eq(orders.id, order.id));
-
-    // Link transaction to order
-    await db
-      .update(sepayTransactions)
-      .set({
-        orderId: order.id,
-        processed: true,
-        updatedAt: new Date(),
-      })
-      .where(eq(sepayTransactions.id, transactionId));
 
     return {
       success: true,
@@ -285,6 +280,8 @@ export async function processSepayWebhookEnhanced(data: SepayWebhookDataEnhanced
  */
 export async function getOrderForPayment(orderId: string): Promise<ActionResult> {
   try {
+    const { organizationId } = await requireOrgContext();
+
     const orderData = await db
       .select({
         id: orders.id,
@@ -303,7 +300,10 @@ export async function getOrderForPayment(orderId: string): Promise<ActionResult>
       })
       .from(orders)
       .leftJoin(customers, eq(orders.customerId, customers.id))
-      .where(eq(orders.id, orderId))
+      .where(and(
+        eq(orders.id, orderId),
+        eq(orders.organizationId, organizationId)
+      ))
       .limit(1);
 
     if (orderData.length === 0) {

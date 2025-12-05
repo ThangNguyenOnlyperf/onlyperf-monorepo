@@ -32,6 +32,9 @@ import {
 } from "./utils";
 import { logger } from "~/lib/logger";
 
+// Note: These actions are called from webhooks, so they receive organizationId as a parameter
+// instead of using requireOrgContext() which requires an authenticated session.
+
 // ============================================================================
 // HELPER SERVER ACTIONS
 // ============================================================================
@@ -43,13 +46,17 @@ import { logger } from "~/lib/logger";
  * 2. Sufficient inventory available (status='received')
  */
 export async function validateInventoryAvailabilityAction(
-  lineItems: LineItem[]
+  lineItems: LineItem[],
+  organizationId: string
 ): Promise<ActionResult<InventoryCheckResult>> {
   try {
-    // Step 1: Map SKUs to warehouse products
+    // Step 1: Map SKUs to warehouse products (filtered by organization)
     const skus = lineItems.map((item) => item.sku);
     const foundProducts = await db.query.products.findMany({
-      where: inArray(products.id, skus),
+      where: and(
+        inArray(products.id, skus),
+        eq(products.organizationId, organizationId)
+      ),
       columns: {
         id: true,
         name: true,
@@ -76,12 +83,13 @@ export async function validateInventoryAvailabilityAction(
       };
     }
 
-    // Step 2: Find available shipment items (status='received')
+    // Step 2: Find available shipment items (status='received') for this organization
     const neededQuantities = calculateNeededQuantities(lineItems);
 
     const availableItems = await db.query.shipmentItems.findMany({
       where: and(
         inArray(shipmentItems.productId, skus),
+        eq(shipmentItems.organizationId, organizationId),
         eq(shipmentItems.status, "received")
       ),
       columns: {
@@ -156,7 +164,8 @@ export async function validateInventoryAvailabilityAction(
  */
 export async function upsertCustomerAction(
   customerData: Customer,
-  shippingAddress: ShippingAddress
+  shippingAddress: ShippingAddress,
+  organizationId: string
 ): Promise<ActionResult<CustomerUpsertResult>> {
   try {
     const customerName =
@@ -173,9 +182,12 @@ export async function upsertCustomerAction(
     let isNew = false;
 
     if (customerPhone) {
-      // Try to find existing customer by phone
+      // Try to find existing customer by phone within organization
       const existingCustomer = await db.query.customers.findFirst({
-        where: eq(customers.phone, customerPhone),
+        where: and(
+          eq(customers.phone, customerPhone),
+          eq(customers.organizationId, organizationId)
+        ),
       });
 
       if (existingCustomer) {
@@ -187,7 +199,10 @@ export async function upsertCustomerAction(
             address: customerAddress,
             updatedAt: new Date(),
           })
-          .where(eq(customers.id, existingCustomer.id));
+          .where(and(
+            eq(customers.id, existingCustomer.id),
+            eq(customers.organizationId, organizationId)
+          ));
 
         customerId = existingCustomer.id;
       } else {
@@ -196,6 +211,7 @@ export async function upsertCustomerAction(
         isNew = true;
         await db.insert(customers).values({
           id: customerId,
+          organizationId,
           name: customerName,
           phone: customerPhone,
           address: customerAddress,
@@ -209,6 +225,7 @@ export async function upsertCustomerAction(
       isNew = true;
       await db.insert(customers).values({
         id: customerId,
+        organizationId,
         name: customerName,
         phone: customerData.email, // Use email as phone placeholder
         address: customerAddress,
@@ -239,7 +256,8 @@ export async function upsertCustomerAction(
 export async function allocateInventoryAction(
   payload: OrderPaidEvent,
   customerId: string,
-  availableByProduct: Map<string, ShipmentItemInfo[]>
+  availableByProduct: Map<string, ShipmentItemInfo[]>,
+  organizationId: string
 ): Promise<ActionResult<OrderProcessingResult>> {
   try {
     const result = await db.transaction(async (tx) => {
@@ -250,6 +268,7 @@ export async function allocateInventoryAction(
       // Create order with pending fulfillment status
       await tx.insert(orders).values({
         id: orderId,
+        organizationId,
         orderNumber,
         customerId,
         source: "shopify",
@@ -274,6 +293,7 @@ export async function allocateInventoryAction(
         // Create one order_item per quantity
         return Array.from({ length: lineItem.quantity }, () => ({
           id: nanoid(),
+          organizationId,
           orderId,
           shipmentItemId: null, // Not allocated yet - staff will scan
           productId: lineItem.sku,
@@ -338,7 +358,8 @@ export async function allocateInventoryAction(
  * 3. Allocate inventory and create order (in transaction)
  */
 export async function processShopifyOrderAction(
-  payload: OrderPaidEvent
+  payload: OrderPaidEvent,
+  organizationId: string
 ): Promise<ActionResult<OrderProcessingResult>> {
   try {
     logger.info({
@@ -350,7 +371,8 @@ export async function processShopifyOrderAction(
 
     // Step 1: Validate inventory availability
     const inventoryCheck = await validateInventoryAvailabilityAction(
-      payload.lineItems
+      payload.lineItems,
+      organizationId
     );
 
     if (!inventoryCheck.success || !inventoryCheck.data?.available) {
@@ -371,7 +393,8 @@ export async function processShopifyOrderAction(
     // Step 2: Upsert customer
     const customerResult = await upsertCustomerAction(
       payload.customer,
-      payload.shippingAddress
+      payload.shippingAddress,
+      organizationId
     );
 
     if (!customerResult.success || !customerResult.data) {
@@ -393,7 +416,8 @@ export async function processShopifyOrderAction(
     const allocationResult = await allocateInventoryAction(
       payload,
       customerId,
-      availableByProduct
+      availableByProduct,
+      organizationId
     );
 
     if (!allocationResult.success || !allocationResult.data) {

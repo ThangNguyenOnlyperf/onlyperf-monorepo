@@ -6,7 +6,10 @@ import { z } from "zod";
 import { logger } from "~/lib/logger";
 
 /**
- * Shopify Order Webhook Handler
+ * Shopify Order Webhook Handler (Legacy - single tenant)
+ *
+ * @deprecated Use /api/webhooks/shopify/[orgId]/orders instead for multi-tenant support
+ *
  * Receives order.paid events from onlyperf when customers pay via Sepay
  *
  * Security: HMAC signature verification required
@@ -40,7 +43,7 @@ export async function POST(request: Request) {
     const payload = OrderPaidEventSchema.parse(rawPayload);
 
     // Step 3: Process order via server action
-    const result = await processShopifyOrderAction(payload);
+    const result = await processShopifyOrderAction(payload, "onlyperf");
 
     if (!result.success || !result.data) {
       // Determine error code based on message

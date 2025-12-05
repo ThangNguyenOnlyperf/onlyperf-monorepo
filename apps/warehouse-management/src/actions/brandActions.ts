@@ -3,17 +3,20 @@
 import { db } from '~/server/db';
 import { brands } from '~/server/db/schema';
 import type { ActionResult } from './types';
-import { eq, like, sql, asc } from 'drizzle-orm';
+import { eq, like, sql, asc, and } from 'drizzle-orm';
 import { z } from 'zod';
 import { BrandSchema, type BrandFormData, type Brand } from '~/lib/schemas/brandSchema';
 import { logger } from '~/lib/logger';
-import { requireAuth } from '~/lib/authorization';
+import { requireOrgContext } from '~/lib/authorization';
 
 export async function getBrandsAction(): Promise<ActionResult<Brand[]>> {
   try {
+    const { organizationId } = await requireOrgContext();
+
     const allBrands = await db
       .select()
       .from(brands)
+      .where(eq(brands.organizationId, organizationId))
       .orderBy(asc(brands.name));
 
     return {
@@ -25,18 +28,23 @@ export async function getBrandsAction(): Promise<ActionResult<Brand[]>> {
     logger.error({ error }, 'Lỗi khi lấy danh sách thương hiệu');
     return {
       success: false,
-      message: 'Không thể lấy danh sách thương hiệu',
+      message: error instanceof Error ? error.message : 'Không thể lấy danh sách thương hiệu',
     };
   }
 }
 
 export async function searchBrandsAction(query: string): Promise<ActionResult<Brand[]>> {
   try {
+    const { organizationId } = await requireOrgContext();
+
     const searchPattern = `%${query}%`;
     const matchingBrands = await db
       .select()
       .from(brands)
-      .where(like(brands.name, searchPattern))
+      .where(and(
+        eq(brands.organizationId, organizationId),
+        like(brands.name, searchPattern)
+      ))
       .orderBy(asc(brands.name))
       .limit(10);
 
@@ -49,27 +57,30 @@ export async function searchBrandsAction(query: string): Promise<ActionResult<Br
     logger.error({ error }, 'Lỗi khi tìm kiếm thương hiệu');
     return {
       success: false,
-      message: 'Không thể tìm kiếm thương hiệu',
+      message: error instanceof Error ? error.message : 'Không thể tìm kiếm thương hiệu',
     };
   }
 }
 
 export async function createBrandAction(data: BrandFormData): Promise<ActionResult<Brand>> {
   try {
-    const session = await requireAuth({ roles: ['admin'] });
-    logger.info({ brandName: data.name, userId: session.user.id, userEmail: session.user.email }, 'Đang tạo thương hiệu');
+    const { organizationId, userId } = await requireOrgContext({ permissions: ['create:brands'] });
+    logger.info({ brandName: data.name, userId, organizationId }, 'Đang tạo thương hiệu');
 
     const validatedData = BrandSchema.parse(data);
 
-    // Check if brand already exists
+    // Check if brand already exists in this org
     const existingBrand = await db
       .select()
       .from(brands)
-      .where(eq(brands.name, validatedData.name))
+      .where(and(
+        eq(brands.organizationId, organizationId),
+        eq(brands.name, validatedData.name)
+      ))
       .limit(1);
 
     if (existingBrand.length > 0) {
-      logger.warn({ brandName: validatedData.name }, 'Thương hiệu đã tồn tại');
+      logger.warn({ brandName: validatedData.name, organizationId }, 'Thương hiệu đã tồn tại');
       return {
         success: false,
         message: `Thương hiệu "${validatedData.name}" đã tồn tại`,
@@ -78,12 +89,13 @@ export async function createBrandAction(data: BrandFormData): Promise<ActionResu
 
     // Create new brand
     const brandId = `brand_${Date.now()}`;
-    logger.info({ brandId, brandName: validatedData.name }, 'Đang thêm thương hiệu vào cơ sở dữ liệu');
+    logger.info({ brandId, brandName: validatedData.name, organizationId }, 'Đang thêm thương hiệu vào cơ sở dữ liệu');
 
     const [newBrand] = await db
       .insert(brands)
       .values({
         id: brandId,
+        organizationId,
         name: validatedData.name,
         description: validatedData.description,
       })
@@ -126,16 +138,19 @@ export async function updateBrandAction(
   data: BrandFormData
 ): Promise<ActionResult<Brand>> {
   try {
-    const session = await requireAuth({ roles: ['admin'] });
-    logger.info({ brandId: id, brandName: data.name, userId: session.user.id, userEmail: session.user.email }, 'Đang cập nhật thương hiệu');
+    const { organizationId, userId } = await requireOrgContext({ permissions: ['update:brands'] });
+    logger.info({ brandId: id, brandName: data.name, userId, organizationId }, 'Đang cập nhật thương hiệu');
 
     const validatedData = BrandSchema.parse(data);
-    
-    // Check if another brand with same name exists
+
+    // Check if another brand with same name exists in this org
     const existingBrand = await db
       .select()
       .from(brands)
-      .where(eq(brands.name, validatedData.name))
+      .where(and(
+        eq(brands.organizationId, organizationId),
+        eq(brands.name, validatedData.name)
+      ))
       .limit(1);
 
     if (existingBrand.length > 0 && existingBrand[0]!.id !== id) {
@@ -152,7 +167,10 @@ export async function updateBrandAction(
         description: validatedData.description,
         updatedAt: new Date(),
       })
-      .where(eq(brands.id, id))
+      .where(and(
+        eq(brands.id, id),
+        eq(brands.organizationId, organizationId)
+      ))
       .returning();
 
     if (!updatedBrand) {
@@ -175,61 +193,52 @@ export async function updateBrandAction(
       };
     }
 
-    if (error instanceof Error && error.message.includes('quyền')) {
-      logger.warn({ error: error.message, brandId: id }, 'Không có quyền cập nhật thương hiệu');
-      return {
-        success: false,
-        message: error.message,
-      };
-    }
-
     logger.error({ error }, 'Lỗi khi cập nhật thương hiệu');
     return {
       success: false,
-      message: 'Không thể cập nhật thương hiệu',
+      message: error instanceof Error ? error.message : 'Không thể cập nhật thương hiệu',
     };
   }
 }
 
 export async function deleteBrandAction(id: string): Promise<ActionResult<void>> {
   try {
-    const session = await requireAuth({ roles: ['admin'] });
-    logger.info({ brandId: id, userId: session.user.id, userEmail: session.user.email }, 'Đang xóa thương hiệu');
+    const { organizationId, userId } = await requireOrgContext({ permissions: ['delete:brands'] });
+    logger.info({ brandId: id, userId, organizationId }, 'Đang xóa thương hiệu');
 
-    // Check if brand is used in any products
-    const [brandUsage] = await db
-      .select({ count: sql<number>`count(*)::int` })
+    // Check if brand exists in this org
+    const [brand] = await db
+      .select()
       .from(brands)
-      .where(eq(brands.id, id));
+      .where(and(
+        eq(brands.id, id),
+        eq(brands.organizationId, organizationId)
+      ))
+      .limit(1);
 
-    if (brandUsage && brandUsage.count > 0) {
+    if (!brand) {
       return {
         success: false,
-        message: 'Không thể xóa thương hiệu đang được sử dụng',
+        message: 'Không tìm thấy thương hiệu',
       };
     }
 
-    await db.delete(brands).where(eq(brands.id, id));
+    await db.delete(brands).where(and(
+      eq(brands.id, id),
+      eq(brands.organizationId, organizationId)
+    ));
 
-    logger.info({ brandId: id }, 'Xóa thương hiệu thành công');
+    logger.info({ brandId: id, organizationId }, 'Xóa thương hiệu thành công');
 
     return {
       success: true,
       message: 'Xóa thương hiệu thành công',
     };
   } catch (error) {
-    if (error instanceof Error && error.message.includes('quyền')) {
-      logger.warn({ error: error.message, brandId: id }, 'Không có quyền xóa thương hiệu');
-      return {
-        success: false,
-        message: error.message,
-      };
-    }
-
     logger.error({ error }, 'Lỗi khi xóa thương hiệu');
     return {
       success: false,
-      message: 'Không thể xóa thương hiệu',
+      message: error instanceof Error ? error.message : 'Không thể xóa thương hiệu',
     };
   }
 }
@@ -237,8 +246,8 @@ export async function deleteBrandAction(id: string): Promise<ActionResult<void>>
 // Get or create brand by name (useful for migration or import)
 export async function getOrCreateBrandAction(name: string): Promise<ActionResult<Brand>> {
   try {
-    const session = await requireAuth({ roles: ['admin'] });
-    logger.info({ brandName: name, userId: session.user.id, userEmail: session.user.email }, 'Đang tạo hoặc lấy thương hiệu');
+    const { organizationId, userId } = await requireOrgContext({ permissions: ['create:brands'] });
+    logger.info({ brandName: name, userId, organizationId }, 'Đang tạo hoặc lấy thương hiệu');
 
     const trimmedName = name.trim();
 
@@ -249,11 +258,14 @@ export async function getOrCreateBrandAction(name: string): Promise<ActionResult
       };
     }
 
-    // Check if brand exists
+    // Check if brand exists in this org
     const [existingBrand] = await db
       .select()
       .from(brands)
-      .where(eq(brands.name, trimmedName))
+      .where(and(
+        eq(brands.organizationId, organizationId),
+        eq(brands.name, trimmedName)
+      ))
       .limit(1);
 
     if (existingBrand) {
@@ -270,6 +282,7 @@ export async function getOrCreateBrandAction(name: string): Promise<ActionResult
       .insert(brands)
       .values({
         id: brandId,
+        organizationId,
         name: trimmedName,
       })
       .returning();
@@ -280,18 +293,10 @@ export async function getOrCreateBrandAction(name: string): Promise<ActionResult
       message: `Đã tạo thương hiệu "${trimmedName}" thành công`,
     };
   } catch (error) {
-    if (error instanceof Error && error.message.includes('quyền')) {
-      logger.warn({ error: error.message, brandName: name }, 'Không có quyền tạo/lấy thương hiệu');
-      return {
-        success: false,
-        message: error.message,
-      };
-    }
-
     logger.error({ error }, 'Lỗi trong getOrCreateBrand');
     return {
       success: false,
-      message: 'Không thể tạo hoặc lấy thương hiệu',
+      message: error instanceof Error ? error.message : 'Không thể tạo hoặc lấy thương hiệu',
     };
   }
 }

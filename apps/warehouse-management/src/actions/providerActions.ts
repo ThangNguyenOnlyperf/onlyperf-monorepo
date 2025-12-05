@@ -1,12 +1,12 @@
 'use server';
 
 import { db } from '~/server/db';
-import { providers } from '~/server/db/schema';
-import { eq, desc, like, or } from 'drizzle-orm';
+import { providers, shipments } from '~/server/db/schema';
+import { eq, desc, like, or, and } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import type { ActionResult } from './types';
 import { logger } from '~/lib/logger';
-import { requireAuth } from '~/lib/authorization';
+import { requireOrgContext } from '~/lib/authorization';
 
 export type Provider = typeof providers.$inferSelect;
 export type ProviderType = 'supplier' | 'retailer' | 'seller';
@@ -26,9 +26,12 @@ export interface UpdateProviderInput extends CreateProviderInput {
 
 export async function getProvidersAction(): Promise<ActionResult<Provider[]>> {
   try {
+    const { organizationId } = await requireOrgContext();
+
     const allProviders = await db
       .select()
       .from(providers)
+      .where(eq(providers.organizationId, organizationId))
       .orderBy(desc(providers.createdAt));
 
     return {
@@ -40,22 +43,27 @@ export async function getProvidersAction(): Promise<ActionResult<Provider[]>> {
     logger.error({ error }, 'Error fetching providers:');
     return {
       success: false,
-      error: 'Không thể lấy danh sách nhà cung cấp',
+      error: error instanceof Error ? error.message : 'Không thể lấy danh sách nhà cung cấp',
     };
   }
 }
 
 export async function searchProvidersAction(query: string): Promise<ActionResult<Provider[]>> {
   try {
+    const { organizationId } = await requireOrgContext();
+
     const searchQuery = `%${query}%`;
     const results = await db
       .select()
       .from(providers)
       .where(
-        or(
-          like(providers.name, searchQuery),
-          like(providers.telephone, searchQuery),
-          like(providers.taxCode, searchQuery)
+        and(
+          eq(providers.organizationId, organizationId),
+          or(
+            like(providers.name, searchQuery),
+            like(providers.telephone, searchQuery),
+            like(providers.taxCode, searchQuery)
+          )
         )
       )
       .orderBy(desc(providers.createdAt));
@@ -69,16 +77,15 @@ export async function searchProvidersAction(query: string): Promise<ActionResult
     logger.error({ error }, 'Error searching providers:');
     return {
       success: false,
-      error: 'Không thể tìm kiếm nhà cung cấp',
+      error: error instanceof Error ? error.message : 'Không thể tìm kiếm nhà cung cấp',
     };
   }
 }
 
 export async function createProviderAction(input: CreateProviderInput): Promise<ActionResult<Provider>> {
   try {
-    // Require admin role to create providers
-    const session = await requireAuth({ roles: ['admin'] });
-    logger.info({ providerName: input.name, providerType: input.type, userId: session.user.id, userEmail: session.user.email }, 'Creating provider...');
+    const { organizationId, userId } = await requireOrgContext({ permissions: ['create:providers'] });
+    logger.info({ providerName: input.name, providerType: input.type, userId, organizationId }, 'Creating provider...');
 
     if (input.type === 'supplier' || input.type === 'retailer') {
       if (!input.taxCode) {
@@ -103,6 +110,7 @@ export async function createProviderAction(input: CreateProviderInput): Promise<
       .insert(providers)
       .values({
         id: providerId,
+        organizationId,
         type: input.type,
         name: input.name,
         taxCode: input.taxCode || null,
@@ -115,7 +123,7 @@ export async function createProviderAction(input: CreateProviderInput): Promise<
     revalidatePath('/shipments/new');
     revalidatePath('/providers');
 
-    logger.info({ providerId, providerName: input.name, providerType: input.type }, 'Successfully created provider');
+    logger.info({ providerId, providerName: input.name, providerType: input.type, organizationId }, 'Successfully created provider');
 
     return {
       success: true,
@@ -123,28 +131,18 @@ export async function createProviderAction(input: CreateProviderInput): Promise<
       data: newProvider,
     };
   } catch (error) {
-    // Handle authorization errors
-    if (error instanceof Error && error.message.includes('quyền')) {
-      logger.warn({ error: error.message, providerName: input.name }, 'Không có quyền tạo nhà cung cấp');
-      return {
-        success: false,
-        error: error.message,
-      };
-    }
-
     logger.error({ error, providerName: input.name, providerType: input.type }, 'Error creating provider');
     return {
       success: false,
-      error: 'Không thể tạo nhà cung cấp',
+      error: error instanceof Error ? error.message : 'Không thể tạo nhà cung cấp',
     };
   }
 }
 
 export async function updateProviderAction(input: UpdateProviderInput): Promise<ActionResult<Provider>> {
   try {
-    // Require admin role to update providers
-    const session = await requireAuth({ roles: ['admin'] });
-    logger.info({ providerId: input.id, providerName: input.name, userId: session.user.id, userEmail: session.user.email }, 'Updating provider...');
+    const { organizationId, userId } = await requireOrgContext({ permissions: ['update:providers'] });
+    logger.info({ providerId: input.id, providerName: input.name, userId, organizationId }, 'Updating provider...');
 
     // Validate required fields based on type
     if (input.type === 'supplier' || input.type === 'retailer') {
@@ -173,7 +171,10 @@ export async function updateProviderAction(input: UpdateProviderInput): Promise<
         accountNo: input.accountNo || null,
         updatedAt: new Date(),
       })
-      .where(eq(providers.id, input.id))
+      .where(and(
+        eq(providers.id, input.id),
+        eq(providers.organizationId, organizationId)
+      ))
       .returning();
 
     if (!updatedProvider) {
@@ -189,35 +190,30 @@ export async function updateProviderAction(input: UpdateProviderInput): Promise<
       data: updatedProvider,
     };
   } catch (error) {
-    // Handle authorization errors
-    if (error instanceof Error && error.message.includes('quyền')) {
-      logger.warn({ error: error.message, providerId: input.id }, 'Không có quyền cập nhật nhà cung cấp');
-      return {
-        success: false,
-        error: error.message,
-      };
-    }
-
     logger.error({ error }, 'Error updating provider:');
     return {
       success: false,
-      error: 'Không thể cập nhật nhà cung cấp',
+      error: error instanceof Error ? error.message : 'Không thể cập nhật nhà cung cấp',
     };
   }
 }
 
 export async function deleteProviderAction(providerId: string): Promise<ActionResult<void>> {
   try {
-    // Require admin role to delete providers
-    const session = await requireAuth({ roles: ['admin'] });
-    logger.info({ providerId, userId: session.user.id, userEmail: session.user.email }, 'Deleting provider...');
+    const { organizationId, userId } = await requireOrgContext({ permissions: ['delete:providers'] });
+    logger.info({ providerId, userId, organizationId }, 'Deleting provider...');
 
-    // Check if provider is used in any shipments
-    const shipmentsWithProvider = await db.query.shipments.findFirst({
-      where: (shipments, { eq }) => eq(shipments.providerId, providerId),
-    });
+    // Check if provider is used in any shipments in this org
+    const shipmentsWithProvider = await db
+      .select()
+      .from(shipments)
+      .where(and(
+        eq(shipments.providerId, providerId),
+        eq(shipments.organizationId, organizationId)
+      ))
+      .limit(1);
 
-    if (shipmentsWithProvider) {
+    if (shipmentsWithProvider.length > 0) {
       return {
         success: false,
         error: 'Không thể xóa nhà cung cấp đã có phiếu nhập',
@@ -226,36 +222,35 @@ export async function deleteProviderAction(providerId: string): Promise<ActionRe
 
     await db
       .delete(providers)
-      .where(eq(providers.id, providerId));
+      .where(and(
+        eq(providers.id, providerId),
+        eq(providers.organizationId, organizationId)
+      ));
 
     return {
       success: true,
       message: 'Xóa nhà cung cấp thành công',
     };
   } catch (error) {
-    // Handle authorization errors
-    if (error instanceof Error && error.message.includes('quyền')) {
-      logger.warn({ error: error.message, providerId }, 'Không có quyền xóa nhà cung cấp');
-      return {
-        success: false,
-        error: error.message,
-      };
-    }
-
     logger.error({ error }, 'Error deleting provider:');
     return {
       success: false,
-      error: 'Không thể xóa nhà cung cấp',
+      error: error instanceof Error ? error.message : 'Không thể xóa nhà cung cấp',
     };
   }
 }
 
 export async function getProviderByIdAction(providerId: string): Promise<ActionResult<Provider>> {
   try {
+    const { organizationId } = await requireOrgContext();
+
     const [provider] = await db
       .select()
       .from(providers)
-      .where(eq(providers.id, providerId))
+      .where(and(
+        eq(providers.id, providerId),
+        eq(providers.organizationId, organizationId)
+      ))
       .limit(1);
 
     if (!provider) {
@@ -274,7 +269,7 @@ export async function getProviderByIdAction(providerId: string): Promise<ActionR
     logger.error({ error }, 'Error fetching provider:');
     return {
       success: false,
-      error: 'Không thể lấy thông tin nhà cung cấp',
+      error: error instanceof Error ? error.message : 'Không thể lấy thông tin nhà cung cấp',
     };
   }
 }

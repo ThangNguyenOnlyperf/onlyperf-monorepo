@@ -5,9 +5,8 @@ import { shipmentItems, storages } from '~/server/db/schema';
 import { eq, and, sql } from 'drizzle-orm';
 import type { ActionResult } from './types';
 import { queueInventorySync } from '~/lib/shopify/inventory';
-import { logger, getUserContext } from '~/lib/logger';
-import { auth } from '~/lib/auth';
-import { headers } from 'next/headers';
+import { logger } from '~/lib/logger';
+import { requireOrgContext } from '~/lib/authorization';
 
 export interface ScannedItem {
   id: string;
@@ -30,11 +29,7 @@ export async function scanItemAction(
   storageId: string
 ): Promise<ActionResult<ScanResult>> {
   try {
-    // Get user context for logging
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-    const userContext = getUserContext(session);
+    const { organizationId, userId, userName } = await requireOrgContext({ permissions: ['update:shipment-items'] });
 
     let productCode = qrCode;
     // Handle URL format: https://onlyperf.com/p/ABCD1234
@@ -46,7 +41,7 @@ export async function scanItemAction(
     const isShortCode = /^[A-Z]{4}\d{4}$/.test(productCode);
 
     if (!isShortCode) {
-      logger.warn({ ...userContext, qrCode: productCode }, 'Invalid QR code format scanned');
+      logger.warn({ userId, userName, organizationId, qrCode: productCode }, 'Invalid QR code format scanned');
       return {
         success: false,
         error: 'Mã QR không hợp lệ',
@@ -57,7 +52,10 @@ export async function scanItemAction(
       const [item] = await tx
         .select()
         .from(shipmentItems)
-        .where(eq(shipmentItems.qrCode, productCode))
+        .where(and(
+          eq(shipmentItems.qrCode, productCode),
+          eq(shipmentItems.organizationId, organizationId)
+        ))
         .limit(1);
 
       if (!item) {
@@ -77,7 +75,10 @@ export async function scanItemAction(
       const [storage] = await tx
         .select()
         .from(storages)
-        .where(eq(storages.id, storageId))
+        .where(and(
+          eq(storages.id, storageId),
+          eq(storages.organizationId, organizationId)
+        ))
         .limit(1);
 
       if (!storage) {
@@ -95,7 +96,10 @@ export async function scanItemAction(
           storageId: storageId,
           scannedAt: new Date(),
         })
-        .where(eq(shipmentItems.id, item.id))
+        .where(and(
+          eq(shipmentItems.id, item.id),
+          eq(shipmentItems.organizationId, organizationId)
+        ))
         .returning();
 
       await tx
@@ -104,7 +108,10 @@ export async function scanItemAction(
           usedCapacity: sql`${storages.usedCapacity} + 1`,
           updatedAt: new Date(),
         })
-        .where(eq(storages.id, storageId));
+        .where(and(
+          eq(storages.id, storageId),
+          eq(storages.organizationId, organizationId)
+        ));
 
       return {
         item: updatedItem as ScannedItem,
@@ -116,19 +123,23 @@ export async function scanItemAction(
     if (!result.isAlreadyReceived) {
       queueInventorySync([result.item.productId]);
       logger.info({
-        ...userContext,
+        userId,
+        userName,
+        organizationId,
         qrCode: productCode,
         productId: result.item.productId,
         shipmentId: result.item.shipmentId,
         storageId,
         itemId: result.item.id,
-      }, `User ${userContext.userName} scanned item ${productCode} into storage`);
+      }, `User ${userName} scanned item ${productCode} into storage`);
     } else {
       logger.info({
-        ...userContext,
+        userId,
+        userName,
+        organizationId,
         qrCode: productCode,
         productId: result.item.productId,
-      }, `User ${userContext.userName} rescanned already received item ${productCode}`);
+      }, `User ${userName} rescanned already received item ${productCode}`);
     }
 
     return {
@@ -137,11 +148,7 @@ export async function scanItemAction(
       data: result,
     };
   } catch (error) {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-    const userContext = getUserContext(session);
-    logger.error({ ...userContext, error, qrCode }, `User ${userContext.userName} failed to scan item`);
+    logger.error({ error, qrCode }, 'Failed to scan item');
     const errorMessage = error instanceof Error ? error.message : 'Lỗi khi quét sản phẩm';
     return {
       success: false,
@@ -155,11 +162,7 @@ export async function bulkUpdateShipmentItemsAction(
   storageId: string
 ): Promise<ActionResult<{ updatedCount: number }>> {
   try {
-    // Get user context for logging
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-    const userContext = getUserContext(session);
+    const { organizationId, userId, userName } = await requireOrgContext({ permissions: ['update:shipment-items'] });
 
     const result = await db.transaction(async (tx) => {
       const pendingItems = await tx
@@ -168,6 +171,7 @@ export async function bulkUpdateShipmentItemsAction(
         .where(
           and(
             eq(shipmentItems.shipmentId, shipmentId),
+            eq(shipmentItems.organizationId, organizationId),
             eq(shipmentItems.status, 'pending')
           )
         );
@@ -179,7 +183,10 @@ export async function bulkUpdateShipmentItemsAction(
       const [storage] = await tx
         .select()
         .from(storages)
-        .where(eq(storages.id, storageId))
+        .where(and(
+          eq(storages.id, storageId),
+          eq(storages.organizationId, organizationId)
+        ))
         .limit(1);
 
       if (!storage) {
@@ -203,6 +210,7 @@ export async function bulkUpdateShipmentItemsAction(
         .where(
           and(
             eq(shipmentItems.shipmentId, shipmentId),
+            eq(shipmentItems.organizationId, organizationId),
             eq(shipmentItems.status, 'pending')
           )
         );
@@ -213,7 +221,10 @@ export async function bulkUpdateShipmentItemsAction(
           usedCapacity: sql`${storages.usedCapacity} + ${pendingItems.length}`,
           updatedAt: new Date(),
         })
-        .where(eq(storages.id, storageId));
+        .where(and(
+          eq(storages.id, storageId),
+          eq(storages.organizationId, organizationId)
+        ));
 
       const productIds = Array.from(new Set(pendingItems.map(item => item.productId)));
 
@@ -228,12 +239,14 @@ export async function bulkUpdateShipmentItemsAction(
     }
 
     logger.info({
-      ...userContext,
+      userId,
+      userName,
+      organizationId,
       shipmentId,
       storageId,
       updatedCount: result.updatedCount,
       productIds: result.productIds,
-    }, `User ${userContext.userName} bulk received ${result.updatedCount} items for shipment ${shipmentId}`);
+    }, `User ${userName} bulk received ${result.updatedCount} items for shipment ${shipmentId}`);
 
     return {
       success: true,
@@ -241,11 +254,7 @@ export async function bulkUpdateShipmentItemsAction(
       data: { updatedCount: result.updatedCount },
     };
   } catch (error) {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-    const userContext = getUserContext(session);
-    logger.error({ ...userContext, error, shipmentId, storageId }, `User ${userContext.userName} failed bulk receiving items`);
+    logger.error({ error, shipmentId, storageId }, 'Failed bulk receiving items');
     const errorMessage = error instanceof Error ? error.message : 'Lỗi khi cập nhật';
     return {
       success: false,
@@ -262,13 +271,18 @@ export async function getShipmentScanProgressAction(
   pendingItems: number;
 }>> {
   try {
+    const { organizationId } = await requireOrgContext();
+
     const stats = await db
       .select({
         status: shipmentItems.status,
         count: sql<number>`count(*)::int`,
       })
       .from(shipmentItems)
-      .where(eq(shipmentItems.shipmentId, shipmentId))
+      .where(and(
+        eq(shipmentItems.shipmentId, shipmentId),
+        eq(shipmentItems.organizationId, organizationId)
+      ))
       .groupBy(shipmentItems.status);
 
     const totalItems = stats.reduce((sum, stat) => sum + stat.count, 0);
@@ -301,13 +315,18 @@ export async function reconcileShipmentStatusAction(
   shipmentId: string
 ): Promise<ActionResult<{ statusUpdated: boolean }>> {
   try {
+    const { organizationId } = await requireOrgContext();
+
     const stats = await db
       .select({
         status: shipmentItems.status,
         count: sql<number>`count(*)::int`,
       })
       .from(shipmentItems)
-      .where(eq(shipmentItems.shipmentId, shipmentId))
+      .where(and(
+        eq(shipmentItems.shipmentId, shipmentId),
+        eq(shipmentItems.organizationId, organizationId)
+      ))
       .groupBy(shipmentItems.status);
 
     const totalItems = stats.reduce((sum, stat) => sum + stat.count, 0);
