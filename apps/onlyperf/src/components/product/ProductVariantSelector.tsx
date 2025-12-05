@@ -15,13 +15,12 @@ export function SizeSelector({
   onSelect,
 }: SizeSelectorProps) {
   if (sizes.length === 0) return null;
-
   return (
-    <div className="space-y-2">
+    <div >
       <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
         Kích cỡ
       </span>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2 mt-2">
         {sizes.map((size) => {
           const isActive = size === selectedSize;
           return (
@@ -65,8 +64,9 @@ export function ColorSelector({
   selectedColorToken,
   onSelect,
 }: ColorSelectorProps) {
-  if (colors.length === 0) return null;
-
+  if (colors.length === 0) {
+    return null
+  };
   return (
     <div className="space-y-2">
       <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
@@ -116,7 +116,6 @@ export function VariantInfo({
   colorHex,
 }: VariantInfoProps) {
   if (!sizeLabel && !colorLabel) return null;
-
   return (
     <div className="text-xs text-zinc-500 dark:text-zinc-500">
       <span className="font-medium">Đã chọn:</span> {sizeLabel ?? "—"}

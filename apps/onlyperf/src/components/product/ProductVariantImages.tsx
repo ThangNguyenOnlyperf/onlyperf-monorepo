@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/carousel";
 import type { StorefrontProductImage } from "@/lib/shopify/types";
 import { ProductImage, ProductImageFallback } from "./ProductImage";
+import { ProductImageLightbox } from "./ProductImageLightbox";
 
 interface ProductVariantImagesProps {
   image: StorefrontProductImage | null;
@@ -28,6 +29,7 @@ export function ProductVariantImages({
   const [mainApi, setMainApi] = useState<CarouselApi>();
   const [thumbApi, setThumbApi] = useState<CarouselApi>();
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
 
   // State cho mask gradient
   const [canScrollUp, setCanScrollUp] = useState(false);
@@ -92,6 +94,21 @@ export function ProductVariantImages({
     };
   }, [thumbApi, checkScrollPosition]);
 
+  // Sync thumbnail carousel when main carousel changes
+  useEffect(() => {
+    if (!mainApi || !thumbApi) return;
+
+    const syncThumbnails = () => {
+      const selected = mainApi.selectedScrollSnap();
+      thumbApi.scrollTo(selected);
+    };
+
+    mainApi.on("select", syncThumbnails);
+    return () => {
+      mainApi.off("select", syncThumbnails);
+    };
+  }, [mainApi, thumbApi]);
+
   // If no images at all, show fallback
   if (allImages.length === 0) {
     return <ProductImageFallback />;
@@ -118,7 +135,9 @@ export function ProductVariantImages({
         <Carousel
           setApi={setThumbApi}
           opts={{
-            dragFree: true,
+            dragFree: false,
+            align: "center",
+            containScroll: "trimSnaps",
           }}
           className="lg:hidden"
         >
@@ -158,8 +177,9 @@ export function ProductVariantImages({
             setApi={setThumbApi}
             opts={{
               axis: "y",
-              dragFree: true,
-              align: "start",
+              dragFree: false,
+              align: "center",
+              containScroll: "trimSnaps",
             }}
             orientation="vertical"
           >
@@ -218,7 +238,17 @@ export function ProductVariantImages({
           <CarouselContent>
             {allImages.map((img, index) => (
               <CarouselItem key={img.url}>
-                <div className="relative min-h-[425px] overflow-hidden rounded-sm bg-zinc-100 dark:bg-zinc-800">
+                <div
+                  className="relative min-h-[425px] overflow-hidden rounded-sm bg-zinc-100 dark:bg-zinc-800 cursor-zoom-in group"
+                  onClick={() => setLightboxOpen(true)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      setLightboxOpen(true);
+                    }
+                  }}
+                >
                   <Image
                     src={img.url}
                     alt={img.altText ?? fallbackTitle}
@@ -254,6 +284,14 @@ export function ProductVariantImages({
           </div>
         </Carousel>
       </div>
+
+        <ProductImageLightbox
+        images={allImages}
+        initialIndex={selectedIndex}
+        open={lightboxOpen}
+        onOpenChange={setLightboxOpen}
+        fallbackTitle={fallbackTitle}
+      />
     </div>
   );
 }

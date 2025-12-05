@@ -110,7 +110,7 @@ export function ProductRailClient({ tabs, className }: ProductRailClientProps) {
                 {tab.items.map((item, index) => (
                   <CarouselItem
                     key={item.id}
-                    className="h-full sm:basis-1/2 md:basis-1/3 lg:basis-1/4"
+                    className="sm:basis-1/2 md:basis-1/3 lg:basis-1/4"
                   >
                     <motion.div
                       initial={{ opacity: 0, y: 30 }}
@@ -139,8 +139,8 @@ export function ProductRailClient({ tabs, className }: ProductRailClientProps) {
 
 function ProductRailCard({ item }: { item: ProductRailItem }) {
   return (
-    <Link href={item.href} className="block h-full">
-      <article className="group flex h-full flex-col overflow-hidden border border-zinc-200 bg-white shadow-sm">
+    <Link href={item.href} className="block">
+      <article className="group flex min-h-[450px] flex-col overflow-hidden border border-zinc-200 bg-white shadow-sm">
         <div className="relative aspect-square w-full overflow-hidden bg-zinc-100">
           <Image
             src={item.image.src}
@@ -160,13 +160,13 @@ function ProductRailCard({ item }: { item: ProductRailItem }) {
           </button>
         </div>
         <div className="flex min-h-[140px] flex-1 flex-col gap-2 px-4 py-5">
-          <h3 className="line-clamp-3 text-sm font-light leading-tight text-zinc-900 transition hover:text-zinc-600">
+          <h3 className="line-clamp-1 font-semibold text-xl text-zinc-900 transition hover:text-zinc-600">
             {item.title}
           </h3>
-          <span className="mt-auto text-[11px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
+          <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">
             {item.category}
           </span>
-          <span className="text-base font-bold text-zinc-900">
+          <span className="mt-auto text-lg font-semibold text-zinc-900">
             {item.price}
           </span>
         </div>
