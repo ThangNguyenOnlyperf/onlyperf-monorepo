@@ -7,6 +7,7 @@ import { revalidatePath } from 'next/cache';
 import type { ActionResult } from './types';
 import { logger } from '~/lib/logger';
 import { requireOrgContext } from '~/lib/authorization';
+import { getDbErrorMessage } from '~/lib/error-handling';
 
 export type Provider = typeof providers.$inferSelect;
 export type ProviderType = 'supplier' | 'retailer' | 'seller';
@@ -43,7 +44,7 @@ export async function getProvidersAction(): Promise<ActionResult<Provider[]>> {
     logger.error({ error }, 'Error fetching providers:');
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Không thể lấy danh sách nhà cung cấp',
+      error: getDbErrorMessage(error, 'Không thể lấy danh sách nhà cung cấp'),
     };
   }
 }
@@ -77,7 +78,7 @@ export async function searchProvidersAction(query: string): Promise<ActionResult
     logger.error({ error }, 'Error searching providers:');
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Không thể tìm kiếm nhà cung cấp',
+      error: getDbErrorMessage(error, 'Không thể tìm kiếm nhà cung cấp'),
     };
   }
 }
@@ -134,7 +135,7 @@ export async function createProviderAction(input: CreateProviderInput): Promise<
     logger.error({ error, providerName: input.name, providerType: input.type }, 'Error creating provider');
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Không thể tạo nhà cung cấp',
+      error: getDbErrorMessage(error, 'Không thể tạo nhà cung cấp'),
     };
   }
 }
@@ -193,7 +194,7 @@ export async function updateProviderAction(input: UpdateProviderInput): Promise<
     logger.error({ error }, 'Error updating provider:');
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Không thể cập nhật nhà cung cấp',
+      error: getDbErrorMessage(error, 'Không thể cập nhật nhà cung cấp'),
     };
   }
 }
@@ -235,7 +236,7 @@ export async function deleteProviderAction(providerId: string): Promise<ActionRe
     logger.error({ error }, 'Error deleting provider:');
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Không thể xóa nhà cung cấp',
+      error: getDbErrorMessage(error, 'Không thể xóa nhà cung cấp'),
     };
   }
 }
@@ -269,7 +270,7 @@ export async function getProviderByIdAction(providerId: string): Promise<ActionR
     logger.error({ error }, 'Error fetching provider:');
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Không thể lấy thông tin nhà cung cấp',
+      error: getDbErrorMessage(error, 'Không thể lấy thông tin nhà cung cấp'),
     };
   }
 }

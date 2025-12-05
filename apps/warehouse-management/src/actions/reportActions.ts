@@ -15,6 +15,7 @@ import {
 import { eq, and, or, ilike, sql, desc, asc, inArray } from 'drizzle-orm';
 import { logger } from '~/lib/logger';
 import { requireOrgContext } from '~/lib/authorization';
+import { getDbErrorMessage } from '~/lib/error-handling';
 
 interface ActionResult<T = unknown> {
   success: boolean;
@@ -314,7 +315,7 @@ export async function getProductTrackingReport(
       },
     };
   } catch (error) {
-    // Handle authorization errors
+    // Handle authorization errors (keep original message for permission errors)
     if (error instanceof Error && error.message.includes('quyền')) {
       logger.warn({ error: error.message, filters }, 'Không có quyền xem báo cáo');
       return {
@@ -326,7 +327,7 @@ export async function getProductTrackingReport(
     logger.error({ error }, 'Error fetching product tracking report:');
     return {
       success: false,
-      message: 'Failed to fetch product tracking report',
+      message: getDbErrorMessage(error, 'Không thể lấy báo cáo theo dõi sản phẩm'),
     };
   }
 }
@@ -356,7 +357,7 @@ export async function exportProductTrackingReport(
       data: { url: '' },
     };
   } catch (error) {
-    // Handle authorization errors
+    // Handle authorization errors (keep original message for permission errors)
     if (error instanceof Error && error.message.includes('quyền')) {
       logger.warn({ error: error.message, filters }, 'Không có quyền xuất báo cáo');
       return {
@@ -368,7 +369,7 @@ export async function exportProductTrackingReport(
     logger.error({ error }, 'Error exporting product tracking report:');
     return {
       success: false,
-      message: 'Failed to export product tracking report',
+      message: getDbErrorMessage(error, 'Không thể xuất báo cáo theo dõi sản phẩm'),
     };
   }
 }

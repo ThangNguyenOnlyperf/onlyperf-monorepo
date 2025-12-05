@@ -1,12 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useTransition } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Search, User, LogOut, Settings, ChevronRight, Home, Menu, X } from 'lucide-react';
+import { Search, User, LogOut, Settings, ChevronRight, Home, Menu, X, Building2, Check } from 'lucide-react';
 import { Button } from '~/components/ui/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '~/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuRadioGroup, DropdownMenuRadioItem } from '~/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar';
 import { useSession, signOut } from "~/lib/auth-client";
+import { getUserOrganizationsAction, switchOrganizationAction, type UserOrganization } from '~/actions/organizationActions';
+import { toast } from 'sonner';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -24,13 +26,44 @@ interface TopNavigationBarProps {
 
 export default function TopNavigationBar({ onSearchOpen, onMenuClick, isSidebarOpen }: TopNavigationBarProps) {
   const [isMac, setIsMac] = useState(false);
+  const [organizations, setOrganizations] = useState<UserOrganization[]>([]);
+  const [isSwitching, startTransition] = useTransition();
   const { data: session, isPending } = useSession();
   const router = useRouter();
   const pathname = usePathname();
-  
+
   useEffect(() => {
     setIsMac(navigator.platform.toUpperCase().includes('MAC'));
   }, []);
+
+  // Fetch user's organizations
+  useEffect(() => {
+    if (session?.user) {
+      getUserOrganizationsAction().then((result) => {
+        if (result.success && result.data) {
+          setOrganizations(result.data);
+        }
+      });
+    }
+  }, [session?.user]);
+
+  const activeOrg = organizations.find((org) => org.isActive);
+
+  const handleSwitchOrg = (orgId: string) => {
+    if (orgId === activeOrg?.id) return;
+
+    startTransition(async () => {
+      const result = await switchOrganizationAction(orgId);
+      if (result.success) {
+        toast.success(result.message);
+        // Refresh page to reload all data with new org context
+        router.refresh();
+        window.location.reload();
+      } else {
+        toast.error(result.message);
+      }
+    });
+  };
 
   const handleSignOut = async () => {
     await signOut();
@@ -161,7 +194,7 @@ export default function TopNavigationBar({ onSearchOpen, onMenuClick, isSidebarO
                   </Avatar>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-56" align="end" forceMount>
+              <DropdownMenuContent className="w-64" align="end" forceMount>
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col space-y-1">
                     <p className="text-sm font-medium leading-none">{session.user.name}</p>
@@ -171,6 +204,39 @@ export default function TopNavigationBar({ onSearchOpen, onMenuClick, isSidebarO
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
+
+                {/* Organization Selector */}
+                {organizations.length > 0 && (
+                  <>
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger disabled={isSwitching}>
+                        <Building2 className="mr-2 h-4 w-4" />
+                        <span className="flex-1 truncate">
+                          {activeOrg?.name ?? 'Chọn tổ chức'}
+                        </span>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent className="w-56">
+                        <DropdownMenuRadioGroup value={activeOrg?.id} onValueChange={handleSwitchOrg}>
+                          {organizations.map((org) => (
+                            <DropdownMenuRadioItem
+                              key={org.id}
+                              value={org.id}
+                              disabled={isSwitching}
+                              className="cursor-pointer"
+                            >
+                              <div className="flex flex-col">
+                                <span className="font-medium">{org.name}</span>
+                                <span className="text-xs text-muted-foreground capitalize">{org.role}</span>
+                              </div>
+                            </DropdownMenuRadioItem>
+                          ))}
+                        </DropdownMenuRadioGroup>
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+
                 <DropdownMenuItem onClick={() => router.push('/dashboard')}>
                   <User className="mr-2 h-4 w-4" />
                   <span>Thông tin tài khoản</span>

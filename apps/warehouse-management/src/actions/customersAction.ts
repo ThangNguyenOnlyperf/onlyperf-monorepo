@@ -3,6 +3,7 @@ import { db } from "~/server/db";
 import { customers } from "~/server/db/schema";
 import { eq } from "drizzle-orm";
 import { requireOrgContext } from "~/lib/authorization";
+import { getDbErrorMessage } from "~/lib/error-handling";
 
 export async function getCustomer(){
   try{
@@ -19,7 +20,7 @@ export async function getCustomer(){
   }catch(error){
     return {
       success:false,
-      message:error instanceof Error ? error.message : "Unknown error",
+      message: getDbErrorMessage(error, "Không thể lấy danh sách khách hàng."),
       data:[]
     }
   }

@@ -6,7 +6,7 @@ import {
   user, account, session, verification,
   organization as organizationTable, member, invitation
 } from "~/server/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, asc } from "drizzle-orm";
 
 export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3001",
@@ -51,8 +51,10 @@ export const auth = betterAuth({
       create: {
         before: async (sessionData) => {
           // Auto-set first org on login if not set
+          // Use orderBy to ensure deterministic selection (oldest membership first)
           const membership = await db.query.member.findFirst({
             where: eq(member.userId, sessionData.userId),
+            orderBy: asc(member.createdAt),
           });
           if (membership) {
             return {
