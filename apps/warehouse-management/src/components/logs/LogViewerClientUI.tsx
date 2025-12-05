@@ -29,6 +29,8 @@ import {
   AlertTriangle,
   XCircle,
   Skull,
+  Copy,
+  Check,
 } from 'lucide-react';
 
 interface LogFile {
@@ -131,6 +133,9 @@ export default function LogViewerClientUI({ initialLogFiles }: LogViewerClientUI
   // Expanded entries
   const [expandedEntries, setExpandedEntries] = useState<Set<number>>(new Set());
 
+  // Copy state
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+
   const fetchLogs = useCallback(() => {
     startTransition(async () => {
       const result = await readLogFile(selectedFile, {
@@ -185,6 +190,16 @@ export default function LogViewerClientUI({ initialLogFiles }: LogViewerClientUI
 
   const handleSearch = () => {
     setSearch(searchInput);
+  };
+
+  const copyToClipboard = async (entry: LogEntry, index: number) => {
+    const extraData = Object.fromEntries(
+      Object.entries(entry).filter(([k]) => !['level', 'levelName', 'time', 'msg'].includes(k))
+    );
+    const textToCopy = JSON.stringify(extraData, null, 2);
+    await navigator.clipboard.writeText(textToCopy);
+    setCopiedIndex(index);
+    setTimeout(() => setCopiedIndex(null), 2000);
   };
 
   const toggleEntry = (index: number) => {
@@ -403,17 +418,42 @@ export default function LogViewerClientUI({ initialLogFiles }: LogViewerClientUI
                       </div>
 
                       {isExpanded && (
-                        <pre className="mt-3 p-3 bg-muted rounded text-xs overflow-x-auto">
-                          {JSON.stringify(
-                            Object.fromEntries(
-                              Object.entries(entry).filter(
-                                ([k]) => !['level', 'levelName', 'time', 'msg'].includes(k)
-                              )
-                            ),
-                            null,
-                            2
-                          )}
-                        </pre>
+                        <div
+                          className="mt-3"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div className="flex justify-end mb-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => copyToClipboard(entry, index)}
+                              className="h-7 text-xs"
+                            >
+                              {copiedIndex === index ? (
+                                <>
+                                  <Check className="h-3 w-3 mr-1" />
+                                  Đã copy
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="h-3 w-3 mr-1" />
+                                  Copy
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                          <pre className="p-3 bg-muted rounded text-xs overflow-x-auto">
+                            {JSON.stringify(
+                              Object.fromEntries(
+                                Object.entries(entry).filter(
+                                  ([k]) => !['level', 'levelName', 'time', 'msg'].includes(k)
+                                )
+                              ),
+                              null,
+                              2
+                            )}
+                          </pre>
+                        </div>
                       )}
 
                       {hasExtra && !isExpanded && (
