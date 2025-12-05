@@ -32,7 +32,7 @@ export const auth = betterAuth({
       adminRole: "admin",
     }),
     organization({
-      allowUserToCreateOrganization: false, // Only via setup script
+      allowUserToCreateOrganization: false,
     }),
   ],
   emailAndPassword: {

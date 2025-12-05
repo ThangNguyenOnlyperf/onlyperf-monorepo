@@ -1,18 +1,17 @@
 import { eq, sql } from "drizzle-orm";
 
-import { env } from "~/env";
 import { db } from "~/server/db";
 import { shipmentItems } from "~/server/db/schema";
 
-import { shopifyRestRequest, ShopifyApiError } from "./client";
+import { OrgShopifyApiError } from "./org-client";
 import {
   findShopifyProductMapping,
   updateShopifyProductSyncState,
   type Database,
 } from "./repository";
 import type { ShopifyInventorySyncResult } from "./types";
-import { SHOPIFY_ENABLED, shopifyIntegrationDisabledMessage } from "./config";
 import { logger } from '~/lib/logger';
+import { getOrgShopifyConfig, createOrgShopifyClient, type OrgShopifyClient, type OrgShopifyConfig } from "./org-client";
 
 const SHOPIFY_SYNC_DELAY_MS = 250;
 
@@ -36,18 +35,24 @@ export async function calculateAvailableQuantity(
 
 export async function syncInventoryForProduct(
   productId: string,
+  organizationId: string,
   database: Database = DEFAULT_DATABASE
 ): Promise<ShopifyInventorySyncResult> {
-  if (!SHOPIFY_ENABLED) {
+  // Get org-specific Shopify config
+  const config = await getOrgShopifyConfig(organizationId);
+
+  if (!config) {
     const quantity = await calculateAvailableQuantity(productId, database);
     return {
       productId,
       status: "skipped",
       quantity,
-      message: shopifyIntegrationDisabledMessage(),
+      message: "Shopify chưa được cấu hình cho tổ chức này",
       shopifyInventoryItemId: null,
     };
   }
+
+  const client = createOrgShopifyClient(config, organizationId);
 
   const availableQuantity = await calculateAvailableQuantity(productId, database);
   const mapping = await findShopifyProductMapping(productId, database);
@@ -78,9 +83,23 @@ export async function syncInventoryForProduct(
     };
   }
 
-  const locationId = env.SHOPIFY_LOCATION_ID;
+  // Use locationId from org config, fallback to default if not set
+  const locationId = config.locationId;
   if (!locationId) {
-    throw new Error("Thiếu cấu hình SHOPIFY_LOCATION_ID để đồng bộ tồn kho Shopify");
+    const message = "Thiếu cấu hình Location ID để đồng bộ tồn kho Shopify";
+    await updateShopifyProductSyncState(productId, {
+      lastSyncedAt: new Date(),
+      lastSyncStatus: "error",
+      lastSyncError: message,
+    }, database);
+
+    return {
+      productId,
+      status: "error",
+      quantity: availableQuantity,
+      message,
+      shopifyInventoryItemId: null,
+    };
   }
 
   const normalizedLocationId = normalizeShopifyNumericId(locationId);
@@ -89,7 +108,7 @@ export async function syncInventoryForProduct(
   );
 
   try {
-    await shopifyRestRequest<unknown>("inventory_levels/set.json", {
+    await client.restRequest<unknown>("inventory_levels/set.json", {
       method: "POST",
       body: JSON.stringify({
         inventory_item_id: normalizedInventoryItemId,
@@ -131,13 +150,14 @@ export async function syncInventoryForProduct(
 
 export async function syncInventoryForProducts(
   productIds: string[],
+  organizationId: string,
   database: Database = DEFAULT_DATABASE
 ): Promise<ShopifyInventorySyncResult[]> {
   const results: ShopifyInventorySyncResult[] = [];
 
   for (const productId of productIds) {
     try {
-      const result = await syncInventoryForProduct(productId, database);
+      const result = await syncInventoryForProduct(productId, organizationId, database);
       results.push(result);
     } catch (error) {
       const message = buildErrorMessage(error);
@@ -160,18 +180,22 @@ export async function syncInventoryForProducts(
 
 export function queueInventorySync(
   productIds: string[],
+  organizationId: string,
   database: Database = DEFAULT_DATABASE
 ): void {
   if (productIds.length === 0) {
     return;
   }
 
-  if (!SHOPIFY_ENABLED) {
-    return;
-  }
+  // Check if Shopify is configured for this org asynchronously
+  getOrgShopifyConfig(organizationId).then((config) => {
+    if (!config) {
+      return;
+    }
 
-  syncInventoryForProducts(productIds, database).catch((error) => {
-    logger.error({ error }, 'Shopify batch inventory sync failed:');
+    syncInventoryForProducts(productIds, organizationId, database).catch((error) => {
+      logger.error({ error, organizationId }, 'Shopify batch inventory sync failed:');
+    });
   });
 }
 
@@ -187,7 +211,7 @@ function normalizeShopifyNumericId(rawId: string): number {
 }
 
 function buildErrorMessage(error: unknown): string {
-  if (error instanceof ShopifyApiError) {
+  if (error instanceof OrgShopifyApiError) {
     return error.message;
   }
 

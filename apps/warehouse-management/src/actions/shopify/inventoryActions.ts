@@ -1,11 +1,11 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 
 import type { ActionResult } from '../types';
 import { db } from '~/server/db';
-import { products, shipmentItems, colors } from '~/server/db/schema';
+import { products, shipmentItems, colors, shipments } from '~/server/db/schema';
 import { createShopifyProductFromWarehouse } from '~/lib/shopify/products';
 import {
   queueInventorySync,
@@ -16,8 +16,9 @@ import type {
   ShopifyFullSyncResult,
   ShopifyInventorySyncResult,
 } from '~/lib/shopify/types';
-import { SHOPIFY_ENABLED, shopifyIntegrationDisabledMessage } from '~/lib/shopify/config';
+import { getOrgShopifyConfig } from '~/lib/shopify/org-client';
 import { logger } from '~/lib/logger';
+import { requireOrgContext } from '~/lib/authorization';
 
 export async function syncShopifyInventoryForProductAction(
   productId: string
@@ -29,17 +30,20 @@ export async function syncShopifyInventoryForProductAction(
     };
   }
 
-  if (!SHOPIFY_ENABLED) {
-    const message = shopifyIntegrationDisabledMessage();
-    return {
-      success: false,
-      message,
-      error: message,
-    };
-  }
-
   try {
-    const result = await syncInventoryForProduct(productId);
+    const { organizationId } = await requireOrgContext();
+
+    // Check if Shopify is configured for this org
+    const config = await getOrgShopifyConfig(organizationId);
+    if (!config) {
+      return {
+        success: false,
+        message: 'Shopify chưa được cấu hình cho tổ chức này',
+        error: 'Shopify chưa được cấu hình cho tổ chức này',
+      };
+    }
+
+    const result = await syncInventoryForProduct(productId, organizationId);
     const success = result.status === 'success';
 
     const message = success
@@ -79,17 +83,20 @@ export async function syncShopifyProductAction(
     };
   }
 
-  if (!SHOPIFY_ENABLED) {
-    const message = shopifyIntegrationDisabledMessage();
-    return {
-      success: false,
-      message,
-      error: message,
-    };
-  }
-
   try {
-    // Get product with color info in a single JOIN query
+    const { organizationId } = await requireOrgContext();
+
+    // Check if Shopify is configured for this org
+    const config = await getOrgShopifyConfig(organizationId);
+    if (!config) {
+      return {
+        success: false,
+        message: 'Shopify chưa được cấu hình cho tổ chức này',
+        error: 'Shopify chưa được cấu hình cho tổ chức này',
+      };
+    }
+
+    // Get product with color info in a single JOIN query (must be in same org)
     const [productWithColor] = await db
       .select({
         id: products.id,
@@ -120,7 +127,10 @@ export async function syncShopifyProductAction(
       })
       .from(products)
       .leftJoin(colors, eq(colors.id, products.colorId))
-      .where(eq(products.id, productId))
+      .where(and(
+        eq(products.id, productId),
+        eq(products.organizationId, organizationId)
+      ))
       .limit(1);
 
     if (!productWithColor) {
@@ -135,7 +145,7 @@ export async function syncShopifyProductAction(
       db,
       { colorHex: productWithColor.colorHex ?? null }
     );
-    const inventorySync = await syncInventoryForProduct(productId);
+    const inventorySync = await syncInventoryForProduct(productId, organizationId);
 
     const success = inventorySync.status === 'success';
 
@@ -190,20 +200,27 @@ export async function syncShipmentInventoryAction(
     };
   }
 
-  if (!SHOPIFY_ENABLED) {
-    const message = shopifyIntegrationDisabledMessage();
-    return {
-      success: false,
-      message,
-      error: message,
-    };
-  }
-
   try {
+    const { organizationId } = await requireOrgContext();
+
+    // Check if Shopify is configured for this org
+    const config = await getOrgShopifyConfig(organizationId);
+    if (!config) {
+      return {
+        success: false,
+        message: 'Shopify chưa được cấu hình cho tổ chức này',
+        error: 'Shopify chưa được cấu hình cho tổ chức này',
+      };
+    }
+
+    // Get shipment items (must be in same org)
     const shipmentItemsProducts = await db
       .select({ productId: shipmentItems.productId })
       .from(shipmentItems)
-      .where(eq(shipmentItems.shipmentId, shipmentId));
+      .where(and(
+        eq(shipmentItems.shipmentId, shipmentId),
+        eq(shipmentItems.organizationId, organizationId)
+      ));
 
     const productIds = Array.from(new Set(shipmentItemsProducts.map((item) => item.productId))).filter(Boolean);
 
@@ -215,7 +232,7 @@ export async function syncShipmentInventoryAction(
       };
     }
 
-    const results = await syncInventoryForProducts(productIds);
+    const results = await syncInventoryForProducts(productIds, organizationId);
 
     const hasError = results.some((result) => result.status === 'error');
     const message = hasError
@@ -242,16 +259,23 @@ export async function syncShipmentInventoryAction(
   }
 }
 
-export async function queueShipmentInventorySync(shipmentId: string): Promise<void> {
-  if (!SHOPIFY_ENABLED) {
-    return;
-  }
-
+/**
+ * Queue shipment inventory sync for background processing
+ * Accepts organizationId as parameter since this may be called from webhooks
+ */
+export async function queueShipmentInventorySync(
+  shipmentId: string,
+  organizationId: string
+): Promise<void> {
   try {
+    // Get shipment items for this org
     const shipmentItemsProducts = await db
       .select({ productId: shipmentItems.productId })
       .from(shipmentItems)
-      .where(eq(shipmentItems.shipmentId, shipmentId));
+      .where(and(
+        eq(shipmentItems.shipmentId, shipmentId),
+        eq(shipmentItems.organizationId, organizationId)
+      ));
 
     const productIds = Array.from(new Set(shipmentItemsProducts.map((item) => item.productId))).filter(Boolean);
 
@@ -259,8 +283,8 @@ export async function queueShipmentInventorySync(shipmentId: string): Promise<vo
       return;
     }
 
-    queueInventorySync(productIds);
+    queueInventorySync(productIds, organizationId);
   } catch (error) {
-    logger.error({ error }, 'Background Shopify sync failed');
+    logger.error({ error, organizationId }, 'Background Shopify sync failed');
   }
 }

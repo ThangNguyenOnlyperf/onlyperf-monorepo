@@ -316,7 +316,7 @@ export async function processOrder(orderData: OrderData): Promise<ActionResult<{
     });
 
     if (result.success && productIdsForSync.length > 0) {
-      queueInventorySync(productIdsForSync);
+      queueInventorySync(productIdsForSync, organizationId);
     }
 
     logger.info({

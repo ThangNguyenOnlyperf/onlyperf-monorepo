@@ -531,7 +531,7 @@ export async function updateShipmentStatusAction(
       ));
 
     if (newStatus === 'received') {
-      void queueShipmentInventorySync(shipmentId);
+      void queueShipmentInventorySync(shipmentId, organizationId);
     }
 
     return {

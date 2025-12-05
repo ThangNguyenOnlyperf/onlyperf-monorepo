@@ -121,7 +121,7 @@ export async function scanItemAction(
     });
 
     if (!result.isAlreadyReceived) {
-      queueInventorySync([result.item.productId]);
+      queueInventorySync([result.item.productId], organizationId);
       logger.info({
         userId,
         userName,
@@ -235,7 +235,7 @@ export async function bulkUpdateShipmentItemsAction(
     });
 
     if (result.productIds.length > 0) {
-      queueInventorySync(result.productIds);
+      queueInventorySync(result.productIds, organizationId);
     }
 
     logger.info({

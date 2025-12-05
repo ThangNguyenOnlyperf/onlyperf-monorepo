@@ -5,6 +5,7 @@
 import { db } from "~/server/db";
 import { organizationSettings } from "~/server/db/schema";
 import { eq } from "drizzle-orm";
+import { decryptSecret } from "~/lib/crypto";
 
 const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
 const MAX_RETRIES = 3;
@@ -46,13 +47,19 @@ export async function getOrgShopifyConfig(organizationId: string): Promise<OrgSh
     return null;
   }
 
+  // Decrypt sensitive fields (handles both encrypted and plaintext for backwards compatibility)
+  const adminApiAccessToken = decryptSecret(settings.shopifyAdminApiAccessToken);
+  const webhookSecret = settings.shopifyWebhookSecret
+    ? decryptSecret(settings.shopifyWebhookSecret)
+    : null;
+
   return {
     enabled: settings.shopifyEnabled,
     storeDomain: settings.shopifyStoreDomain,
-    adminApiAccessToken: settings.shopifyAdminApiAccessToken,
+    adminApiAccessToken,
     apiVersion: settings.shopifyApiVersion ?? "2025-04",
     locationId: settings.shopifyLocationId,
-    webhookSecret: settings.shopifyWebhookSecret,
+    webhookSecret,
   };
 }
 

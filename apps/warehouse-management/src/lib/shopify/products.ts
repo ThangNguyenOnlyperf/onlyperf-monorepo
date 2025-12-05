@@ -1,4 +1,3 @@
-import { shopifyRestRequest, shopifyGraphqlRequest } from "./client";
 import {
   findShopifyProductIdByBrandModel,
   findShopifyProductMapping,
@@ -8,7 +7,7 @@ import {
 import type { ShopifyProductSyncResult } from "./types";
 import { buildRestProductPayload, formatPrice, type ProductRecord, type ProductWithColor } from "./productPayload";
 import { db } from "~/server/db";
-import { SHOPIFY_ENABLED, shopifyIntegrationDisabledMessage } from "./config";
+import { getOrgShopifyConfig, createOrgShopifyClient, type OrgShopifyClient } from "./org-client";
 
 // GraphQL mutation to set metafields on a variant
 const SET_METAFIELDS_MUTATION = `
@@ -79,11 +78,12 @@ const DEFAULT_OPTION_VALUE = "Default";
  * This allows the ecommerce storefront to display the correct color swatch
  */
 async function setVariantColorHexMetafield(
+  client: OrgShopifyClient,
   variantGid: string,
   colorHex: string
 ): Promise<void> {
   try {
-    const response = await shopifyGraphqlRequest<MetafieldsSetResponse>({
+    const response = await client.graphqlRequest<MetafieldsSetResponse>({
       query: SET_METAFIELDS_MUTATION,
       variables: {
         metafields: [
@@ -122,12 +122,17 @@ export async function createShopifyProductFromWarehouse(
   database: Database = DEFAULT_DATABASE,
   options?: CreateShopifyProductOptions
 ): Promise<ShopifyProductSyncResult> {
-  if (!SHOPIFY_ENABLED) {
+  // Get org-specific Shopify config
+  const config = await getOrgShopifyConfig(product.organizationId);
+
+  if (!config) {
     return {
       status: "skipped",
-      message: shopifyIntegrationDisabledMessage(),
+      message: "Shopify chưa được cấu hình cho tổ chức này",
     };
   }
+
+  const client = createOrgShopifyClient(config, product.organizationId);
 
   const existingMapping = await findShopifyProductMapping(product.id, database);
 
@@ -135,7 +140,7 @@ export async function createShopifyProductFromWarehouse(
     // Even if product exists, try to set the color metafield if we have a hex value
     // This handles the case where product was created before this feature
     if (options?.colorHex && existingMapping.shopifyVariantId) {
-      await setVariantColorHexMetafield(existingMapping.shopifyVariantId, options.colorHex);
+      await setVariantColorHexMetafield(client, existingMapping.shopifyVariantId, options.colorHex);
     }
 
     return {
@@ -154,10 +159,10 @@ export async function createShopifyProductFromWarehouse(
   );
 
   if (existingProductGid) {
-    const variantResult = await createVariantOnExistingProduct(existingProductGid, product);
+    const variantResult = await createVariantOnExistingProduct(client, existingProductGid, product);
 
     if (options?.colorHex) {
-      await setVariantColorHexMetafield(variantResult.shopifyVariantId, options.colorHex);
+      await setVariantColorHexMetafield(client, variantResult.shopifyVariantId, options.colorHex);
     }
 
     await upsertShopifyProductMapping(
@@ -184,7 +189,7 @@ export async function createShopifyProductFromWarehouse(
 
   const payload = buildRestProductPayload(product);
 
-  const data = await shopifyRestRequest<RestProductResponse>("products.json", {
+  const data = await client.restRequest<RestProductResponse>("products.json", {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -206,7 +211,7 @@ export async function createShopifyProductFromWarehouse(
     : null;
 
   if (options?.colorHex) {
-    await setVariantColorHexMetafield(shopifyVariantId, options.colorHex);
+    await setVariantColorHexMetafield(client, shopifyVariantId, options.colorHex);
   }
 
   await upsertShopifyProductMapping(
@@ -232,12 +237,13 @@ export async function createShopifyProductFromWarehouse(
 }
 
 async function createVariantOnExistingProduct(
+  client: OrgShopifyClient,
   shopifyProductGid: string,
   product: ProductWithColor
 ) {
   const numericProductId = fromGid(shopifyProductGid);
 
-  const productDetail = await shopifyRestRequest<RestProductDetailResponse>(
+  const productDetail = await client.restRequest<RestProductDetailResponse>(
     `products/${numericProductId}.json`
   );
 
@@ -250,7 +256,7 @@ async function createVariantOnExistingProduct(
     product
   );
 
-  const response = await shopifyRestRequest<RestVariantCreateResponse>(
+  const response = await client.restRequest<RestVariantCreateResponse>(
     `products/${numericProductId}/variants.json`,
     {
       method: "POST",
