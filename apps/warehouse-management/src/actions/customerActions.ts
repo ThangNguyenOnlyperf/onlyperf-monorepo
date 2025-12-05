@@ -94,6 +94,7 @@ export async function getCustomersList(
       .where(whereClause);
     const total = totalResult[0]?.count ?? 0;
 
+    // Use array_agg with ORDER BY to get the latest customer_type (avoids correlated subquery N+1)
     let customersQuery = db
       .select({
         customer: customers,
@@ -102,11 +103,7 @@ export async function getCustomersList(
         lastOrderDate: sql<Date | null>`max(${orders.createdAt})`,
         customerType: sql<'b2b' | 'b2c'>`
           COALESCE(
-            (SELECT customer_type
-             FROM orders o2
-             WHERE o2.customer_id = ${customers.id}
-             ORDER BY o2.created_at DESC
-             LIMIT 1),
+            (array_agg(${orders.customerType} ORDER BY ${orders.createdAt} DESC NULLS LAST) FILTER (WHERE ${orders.customerType} IS NOT NULL))[1],
             'b2c'
           )
         `,
@@ -270,7 +267,7 @@ export async function getCustomerById(customerId: string): Promise<ActionResult<
   try {
     const { organizationId } = await requireOrgContext();
 
-    // Get customer with statistics
+    // Get customer with statistics (use array_agg to avoid correlated subquery)
     const customerData = await db
       .select({
         customer: customers,
@@ -279,11 +276,7 @@ export async function getCustomerById(customerId: string): Promise<ActionResult<
         lastOrderDate: sql<Date | null>`max(${orders.createdAt})`,
         customerType: sql<'b2b' | 'b2c'>`
           COALESCE(
-            (SELECT customer_type
-             FROM orders o2
-             WHERE o2.customer_id = ${customers.id}
-             ORDER BY o2.created_at DESC
-             LIMIT 1),
+            (array_agg(${orders.customerType} ORDER BY ${orders.createdAt} DESC NULLS LAST) FILTER (WHERE ${orders.customerType} IS NOT NULL))[1],
             'b2c'
           )
         `,

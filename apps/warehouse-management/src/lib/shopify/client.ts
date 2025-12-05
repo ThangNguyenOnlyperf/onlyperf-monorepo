@@ -4,7 +4,18 @@ const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
 const MAX_RETRIES = 3;
 const BASE_BACKOFF_MS = 500;
 
+/**
+ * @deprecated Use org-client.ts instead for per-organization Shopify config.
+ * This global client is only kept for backwards compatibility with fulfillment.ts
+ */
 function getShopifyUrls() {
+  if (!env.SHOPIFY_STORE_DOMAIN || !env.SHOPIFY_ADMIN_API_ACCESS_TOKEN) {
+    throw new ShopifyApiError(
+      "Global Shopify env vars (SHOPIFY_STORE_DOMAIN, SHOPIFY_ADMIN_API_ACCESS_TOKEN) not configured. " +
+      "Configure per-org settings in Settings > Shopify instead.",
+      500
+    );
+  }
   const sanitizedDomain = env.SHOPIFY_STORE_DOMAIN.replace(/^https?:\/\//, "");
   const apiBaseUrl = `https://${sanitizedDomain}/admin/api/${env.SHOPIFY_API_VERSION}`;
   const shopifyGraphqlUrl = `${apiBaseUrl}/graphql.json`;
@@ -50,7 +61,7 @@ export async function shopifyGraphqlRequest<T>({
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Shopify-Access-Token": env.SHOPIFY_ADMIN_API_ACCESS_TOKEN,
+        "X-Shopify-Access-Token": env.SHOPIFY_ADMIN_API_ACCESS_TOKEN!,
       },
       body: JSON.stringify({
         query,
@@ -110,7 +121,7 @@ export async function shopifyRestRequest<T>(
     method: init?.method ?? "GET",
     headers: {
       "Content-Type": "application/json",
-      "X-Shopify-Access-Token": env.SHOPIFY_ADMIN_API_ACCESS_TOKEN,
+      "X-Shopify-Access-Token": env.SHOPIFY_ADMIN_API_ACCESS_TOKEN!,
       ...(init?.headers ?? {}),
     },
     body: init?.body,

@@ -9,7 +9,7 @@ import { encryptSecret, maskSecret, isEncrypted } from "~/lib/crypto";
 import { createOrgShopifyClient, getOrgShopifyConfig } from "~/lib/shopify/org-client";
 import { logger } from "~/lib/logger";
 import type { ActionResult } from "./types";
-import { getDbErrorMessage } from "~/lib/error-handling";
+import { getDbErrorMessage, serializeError } from "~/lib/error-handling";
 
 /**
  * Shopify settings form schema
@@ -93,7 +93,7 @@ export async function getShopifySettingsAction(): Promise<ActionResult<ShopifySe
       message: "Lấy cài đặt Shopify thành công.",
     };
   } catch (error) {
-    logger.error({ error }, "Error fetching Shopify settings");
+    logger.error({ error: serializeError(error) }, "Error fetching Shopify settings");
     return {
       success: false,
       message: getDbErrorMessage(error, "Không thể lấy cài đặt Shopify."),
@@ -173,7 +173,7 @@ export async function updateShopifySettingsAction(
       message: "Đã cập nhật cài đặt Shopify thành công.",
     };
   } catch (error) {
-    logger.error({ error }, "Error updating Shopify settings");
+    logger.error({ error: serializeError(error) }, "Error updating Shopify settings");
 
     if (error instanceof z.ZodError) {
       return {
@@ -244,7 +244,7 @@ export async function testShopifyConnectionAction(): Promise<
       message: `Kết nối thành công với cửa hàng "${result.shop.name}".`,
     };
   } catch (error) {
-    logger.error({ error }, "Shopify connection test failed");
+    logger.error({ error: serializeError(error) }, "Shopify connection test failed");
     return {
       success: false,
       message: error instanceof Error ? error.message : "Không thể kết nối với Shopify.",
@@ -281,7 +281,7 @@ export async function clearShopifySettingsAction(): Promise<ActionResult<void>> 
       message: "Đã xóa cấu hình Shopify.",
     };
   } catch (error) {
-    logger.error({ error }, "Error clearing Shopify settings");
+    logger.error({ error: serializeError(error) }, "Error clearing Shopify settings");
     return {
       success: false,
       message: getDbErrorMessage(error, "Không thể xóa cấu hình Shopify."),

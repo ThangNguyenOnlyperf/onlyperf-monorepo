@@ -2,7 +2,7 @@
 
 import { nanoid } from "nanoid";
 import { db } from "~/server/db";
-import { deliveries, deliveryHistory, deliveryResolutions, orders, orderItems, shipmentItems } from "~/server/db/schema";
+import { deliveries, deliveryHistory, deliveryResolutions, orders, orderItems, shipmentItems, customers, products } from "~/server/db/schema";
 import { eq, and, desc, inArray, sql } from "drizzle-orm";
 import type { ActionResult } from "./types";
 import {
@@ -560,32 +560,35 @@ export async function getDeliveryStats(): Promise<ActionResult<DeliveryStats>> {
 
 // Helper function to get delivery with order details
 async function getDeliveryWithOrder(tx: any, deliveryId: string): Promise<DeliveryWithOrder | null> {
+  // Use JOINs instead of subqueries for better performance
   const result = await tx.select({
     delivery: deliveries,
     order: orders,
     customer: {
-      id: sql`${orders.customerId}`,
-      name: sql`(SELECT name FROM customers WHERE id = ${orders.customerId})`,
-      phone: sql`(SELECT phone FROM customers WHERE id = ${orders.customerId})`,
-      address: sql`(SELECT address FROM customers WHERE id = ${orders.customerId})`,
+      id: customers.id,
+      name: customers.name,
+      phone: customers.phone,
+      address: customers.address,
     },
   })
   .from(deliveries)
   .innerJoin(orders, eq(deliveries.orderId, orders.id))
+  .leftJoin(customers, eq(orders.customerId, customers.id))
   .where(eq(deliveries.id, deliveryId))
   .limit(1);
 
   if (!result[0]) return null;
 
-  // Get order items
+  // Get order items with product name via JOIN (avoid N+1 subquery)
   const items = await tx.select({
     id: orderItems.id,
-    productName: sql`(SELECT name FROM products WHERE id = ${orderItems.productId})`,
+    productName: products.name,
     quantity: orderItems.quantity,
     price: orderItems.price,
     qrCode: orderItems.qrCode,
   })
   .from(orderItems)
+  .leftJoin(products, eq(orderItems.productId, products.id))
   .where(eq(orderItems.orderId, result[0].order.id));
 
   // Get resolution if exists
@@ -762,19 +765,20 @@ export async function getDeliveries(params: {
       );
     }
 
-    // Get deliveries
+    // Get deliveries with customer data via JOIN (avoid N+1 subqueries)
     const deliveryList = await db.select({
       delivery: deliveries,
       order: orders,
       customer: {
-        id: sql`${orders.customerId}`,
-        name: sql`(SELECT name FROM customers WHERE id = ${orders.customerId})`,
-        phone: sql`(SELECT phone FROM customers WHERE id = ${orders.customerId})`,
-        address: sql`(SELECT address FROM customers WHERE id = ${orders.customerId})`,
+        id: customers.id,
+        name: customers.name,
+        phone: customers.phone,
+        address: customers.address,
       },
     })
     .from(deliveries)
     .innerJoin(orders, eq(deliveries.orderId, orders.id))
+    .leftJoin(customers, eq(orders.customerId, customers.id))
     .where(and(...conditions))
     .orderBy(desc(deliveries.createdAt))
     .limit(pageSize)
@@ -804,15 +808,17 @@ export async function getDeliveries(params: {
     }
 
     const orderIds = deliveryList.map(d => d.order.id);
+    // Get order items with product name via JOIN (avoid N+1 subquery)
     const allItems = await db.select({
       orderId: orderItems.orderId,
       id: orderItems.id,
-      productName: sql`(SELECT name FROM products WHERE id = ${orderItems.productId})`,
+      productName: products.name,
       quantity: orderItems.quantity,
       price: orderItems.price,
       qrCode: orderItems.qrCode,
     })
     .from(orderItems)
+    .leftJoin(products, eq(orderItems.productId, products.id))
     .where(inArray(orderItems.orderId, orderIds));
 
     // Group items by order ID

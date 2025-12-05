@@ -15,10 +15,14 @@ export const env = createEnv({
     TYPESENSE_PORT: z.string(),
     TYPESENSE_PROTOCOL: z.enum(["http", "https"]),
     TYPESENSE_API_KEY: z.string(),
-    SHOPIFY_STORE_DOMAIN: z.string().min(1),
-    SHOPIFY_ADMIN_API_ACCESS_TOKEN: z.string().min(1),
-    SHOPIFY_API_VERSION: z.string().min(1).default("2025-04"),
+    // Legacy global Shopify config (optional - per-org settings preferred)
+    // Still used by fulfillment.ts until migrated to org-client
+    SHOPIFY_STORE_DOMAIN: z.string().optional(),
+    SHOPIFY_ADMIN_API_ACCESS_TOKEN: z.string().optional(),
+    SHOPIFY_API_VERSION: z.string().default("2025-04"),
     SHOPIFY_LOCATION_ID: z.string().optional(),
+    // Encryption key for storing sensitive data (API tokens, secrets)
+    SECRETS_ENCRYPTION_KEY: z.string().min(32),
     // Server-only toggle if you need it in server code
     SHOPIFY_ENABLED: z
       .enum(["true", "false"]) // explicit string for env handling
@@ -50,6 +54,7 @@ export const env = createEnv({
     SHOPIFY_ADMIN_API_ACCESS_TOKEN: process.env.SHOPIFY_ADMIN_API_ACCESS_TOKEN,
     SHOPIFY_API_VERSION: process.env.SHOPIFY_API_VERSION ?? "2025-04",
     SHOPIFY_LOCATION_ID: process.env.SHOPIFY_LOCATION_ID,
+    SECRETS_ENCRYPTION_KEY: process.env.SECRETS_ENCRYPTION_KEY,
     SHOPIFY_ENABLED: process.env.SHOPIFY_ENABLED ?? "true",
     NEXT_PUBLIC_SHOPIFY_ENABLED:
       process.env.NEXT_PUBLIC_SHOPIFY_ENABLED ?? process.env.SHOPIFY_ENABLED ?? "true",

@@ -1,4 +1,18 @@
 /**
+ * Serialize an error for logging (Error objects don't JSON.stringify properly)
+ */
+export function serializeError(error: unknown): { message: string; name?: string; stack?: string } {
+  if (error instanceof Error) {
+    return {
+      message: error.message,
+      name: error.name,
+      stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+    };
+  }
+  return { message: String(error) };
+}
+
+/**
  * Map database constraint errors to user-friendly Vietnamese messages
  */
 export function getDbErrorMessage(error: unknown, defaultMessage: string): string {

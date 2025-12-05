@@ -139,17 +139,20 @@ export async function createShipmentAction(
       const processedItems: ProcessedItem[] = [];
       let sequenceNumber = 1;
 
+      // Batch fetch all products at once (avoid N+1 queries)
+      const productIds = [...new Set(items.map(item => item.brand))];
+      const productsList = await tx
+        .select()
+        .from(products)
+        .where(and(
+          sql`${products.id} = ANY(${productIds})`,
+          eq(products.organizationId, organizationId)
+        ));
+      const productsMap = new Map(productsList.map(p => [p.id, p]));
+
       for (const item of items) {
-        // item.brand now contains the product ID (temporary solution)
-        // Find the product in database (must be in same org)
-        const [product] = await tx
-          .select()
-          .from(products)
-          .where(and(
-            eq(products.id, item.brand),
-            eq(products.organizationId, organizationId)
-          ))
-          .limit(1);
+        // O(1) lookup from Map - no DB query inside loop
+        const product = productsMap.get(item.brand);
 
         let productId: string;
         let brandName: string;
