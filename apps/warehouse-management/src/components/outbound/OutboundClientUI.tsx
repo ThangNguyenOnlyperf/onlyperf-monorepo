@@ -140,23 +140,30 @@ export default function OutboundClientUI() {
           // Only update if there are changes
           if (result.data.lastUpdated > (lastUpdateRef.current ?? new Date(0))) {
             setIsSyncing(true);
-            
-            // Merge cart items (union of both)
-            const currentIds = new Set(cartItems.map(item => item.id));
-            const remoteIds = new Set(result.data.cartItems.map(item => item.id));
-            const mergedItems = [
-              ...cartItems,
-              ...result.data.cartItems.filter(item => !currentIds.has(item.id))
-            ];
-            
-            if (mergedItems.length !== cartItems.length) {
-              setCartItems(mergedItems);
-              setScannedItemIds(new Set(mergedItems.map(item => item.id)));
-            }
-            
-            // Update customer info (last write wins)
-            if (JSON.stringify(result.data.customerInfo) !== JSON.stringify(customerInfo)) {
+
+            // Check if session was cleared (remote cart is empty but local has items)
+            if (result.data.cartItems.length === 0 && cartItems.length > 0) {
+              // Session was cleared (order completed on another device)
+              setCartItems([]);
+              setScannedItemIds(new Set());
               setCustomerInfo(result.data.customerInfo);
+            } else {
+              // Normal merge for adding items from other devices
+              const currentIds = new Set(cartItems.map(item => item.id));
+              const mergedItems = [
+                ...cartItems,
+                ...result.data.cartItems.filter(item => !currentIds.has(item.id))
+              ];
+
+              if (mergedItems.length !== cartItems.length) {
+                setCartItems(mergedItems);
+                setScannedItemIds(new Set(mergedItems.map(item => item.id)));
+              }
+
+              // Update customer info (last write wins)
+              if (JSON.stringify(result.data.customerInfo) !== JSON.stringify(customerInfo)) {
+                setCustomerInfo(result.data.customerInfo);
+              }
             }
             
             lastUpdateRef.current = result.data.lastUpdated;
