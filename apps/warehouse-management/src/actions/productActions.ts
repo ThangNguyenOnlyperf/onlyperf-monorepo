@@ -1,5 +1,6 @@
 'use server';
 
+import { nanoid } from 'nanoid';
 import { db } from '~/server/db';
 import { products, shipmentItems, brands, shopifyProducts, colors } from '~/server/db/schema';
 import type { ActionResult } from './types';
@@ -183,7 +184,7 @@ export async function createProductAction(data: ProductFormData): Promise<Action
     }
 
     // Create new product
-    const productId = `prd_${Date.now()}`;
+    const productId = `prd_${nanoid()}`;
     const productName = `${brandInfo.name} ${validatedData.model}`;
 
     logger.info({ ...userContext, organizationId, productName, brand: brandInfo.name, model: validatedData.model, colorId: validatedData.colorId, colorName: colorInfo.name }, `User ${userContext.userName} creating product: ${productName}`);

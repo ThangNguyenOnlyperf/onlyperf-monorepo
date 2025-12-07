@@ -1,5 +1,6 @@
 'use server';
 
+import { nanoid } from 'nanoid';
 import { db } from '~/server/db';
 import { orders, customers, sepayTransactions } from '~/server/db/schema';
 import { eq, desc, and } from 'drizzle-orm';
@@ -64,12 +65,12 @@ export async function createOrderWithPayment(request: CreateOrderRequest): Promi
     const { organizationId } = await requireOrgContext();
 
     // Generate unique order ID and number
-    const orderId = `order_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const orderId = `order_${nanoid()}`;
     const orderNumber = `ORD${Date.now().toString().substr(-8)}`;
     const paymentCode = request.paymentMethod === 'bank_transfer' ? await generatePaymentCode(orderId) : null;
 
     // Create customer first (simplified - in real app, check if customer exists)
-    const customerId = `customer_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const customerId = `customer_${nanoid()}`;
     await db.insert(customers).values({
       id: customerId,
       organizationId,
@@ -227,7 +228,7 @@ export async function processSepayWebhookEnhanced(data: SepayWebhookDataEnhanced
     const order = matchingOrders[0];
 
     // Store the transaction with organizationId from the matching order
-    const transactionId = `sepay_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const transactionId = `sepay_${nanoid()}`;
     await db.insert(sepayTransactions).values({
       id: transactionId,
       organizationId: order.organizationId,

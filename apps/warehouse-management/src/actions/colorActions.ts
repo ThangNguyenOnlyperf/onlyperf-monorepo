@@ -1,5 +1,6 @@
 'use server';
 
+import { nanoid } from 'nanoid';
 import { db } from '~/server/db';
 import { colors } from '~/server/db/schema';
 import type { ActionResult } from './types';
@@ -86,7 +87,7 @@ export async function createColorAction(input: ColorFormData): Promise<ActionRes
       };
     }
 
-    const colorId = `col_${Date.now()}`;
+    const colorId = `col_${nanoid()}`;
     logger.info({ colorId, colorName: data.name, hex: data.hex, organizationId }, 'Đang thêm màu vào cơ sở dữ liệu');
 
     const [created] = await db

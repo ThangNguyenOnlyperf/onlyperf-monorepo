@@ -1,5 +1,6 @@
 'use server';
 
+import { nanoid } from 'nanoid';
 import { db } from '~/server/db';
 import { brands } from '~/server/db/schema';
 import type { ActionResult } from './types';
@@ -88,7 +89,7 @@ export async function createBrandAction(data: BrandFormData): Promise<ActionResu
     }
 
     // Create new brand
-    const brandId = `brand_${Date.now()}`;
+    const brandId = `brand_${nanoid()}`;
     logger.info({ brandId, brandName: validatedData.name, organizationId }, 'Đang thêm thương hiệu vào cơ sở dữ liệu');
 
     const [newBrand] = await db
@@ -277,7 +278,7 @@ export async function getOrCreateBrandAction(name: string): Promise<ActionResult
     }
 
     // Create new brand
-    const brandId = `brand_${Date.now()}`;
+    const brandId = `brand_${nanoid()}`;
     const [newBrand] = await db
       .insert(brands)
       .values({

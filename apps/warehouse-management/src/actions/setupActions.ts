@@ -1,12 +1,12 @@
 "use server";
 
+import { nanoid } from "nanoid";
 import { db } from "~/server/db";
 import { user, organization, member } from "~/server/db/schema";
 import { eq } from "drizzle-orm";
 import type { ActionResult } from "./types";
 import { signUpEmailServer } from "~/lib/auth-server";
 import { logger } from "~/lib/logger";
-import { randomBytes } from "crypto";
 
 // Types
 export interface SetupState {
@@ -19,9 +19,7 @@ export interface SetupState {
  * Generate a unique member ID
  */
 function generateMemberId(): string {
-  const timestamp = Date.now().toString(36);
-  const random = randomBytes(4).toString("hex");
-  return `member_${timestamp}${random}`;
+  return `member_${nanoid()}`;
 }
 
 /**
