@@ -7,7 +7,7 @@ export interface ActionResult<T = unknown> {
 
 export interface ShipmentResult {
   shipmentId: string;
-  items: ProcessedItem[];
+  itemCount: number;
 }
 
 export interface ProcessedItem {

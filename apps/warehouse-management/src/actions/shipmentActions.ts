@@ -3,7 +3,7 @@
 import { db } from '~/server/db';
 import { products, shipments, shipmentItems } from '~/server/db/schema';
 import { generateShortCode } from '~/lib/product-code';
-import { eq, desc, sql, and, like, gte, lte, asc } from 'drizzle-orm';
+import { eq, desc, sql, and, like, gte, lte, asc, inArray } from 'drizzle-orm';
 import type { ActionResult, ShipmentResult, ProcessedItem, GroupedQRItems } from './types';
 import { queueShipmentInventorySync } from './shopify/inventoryActions';
 import type { ShipmentFormData } from '~/components/shipments/ShipmentSchema';
@@ -105,6 +105,9 @@ async function findOrCreatePackProduct(
   return existingPack;
 }
 
+// Batch insert chunk size - balance between memory and DB round trips
+const BATCH_INSERT_CHUNK_SIZE = 500;
+
 export async function createShipmentAction(
   data: ShipmentFormData
 ): Promise<ActionResult<ShipmentResult>> {
@@ -135,86 +138,130 @@ export async function createShipmentAction(
         status: 'pending',
       });
 
-      // Process items
-      const processedItems: ProcessedItem[] = [];
-      let sequenceNumber = 1;
-
-      // Batch fetch all products at once (avoid N+1 queries)
+      // ============================================================
+      // PHASE 1: Batch fetch all products (avoid N+1 queries)
+      // ============================================================
       const productIds = [...new Set(items.map(item => item.brand))];
       const productsList = await tx
         .select()
         .from(products)
         .where(and(
-          sql`${products.id} = ANY(${productIds})`,
+          inArray(products.id, productIds),
           eq(products.organizationId, organizationId)
         ));
       const productsMap = new Map(productsList.map(p => [p.id, p]));
 
+      // ============================================================
+      // PHASE 2: Collect all unique pack configurations and create them upfront
+      // This moves findOrCreatePackProduct calls OUTSIDE the main item loop
+      // ============================================================
+      const packConfigs = new Map<string, { product: typeof products.$inferSelect; packSize: number }>();
+
       for (const item of items) {
-        // O(1) lookup from Map - no DB query inside loop
         const product = productsMap.get(item.brand);
-
-        let productId: string;
-        let brandName: string;
-        let modelName: string;
-        let numberOfItems: number;
-
-        if (product) {
-          // Check if this is a ball product (type: 'ball') with pack configuration
-          const isPackableWithConfig =
-            isPackableType(product.productType) &&
-            !product.isPackProduct &&
-            item.isPackableProduct &&
-            item.totalUnits &&
-            item.packSize;
-
-          if (isPackableWithConfig) {
-            // BALL PACK PRODUCT FLOW
-            // Validate divisibility
-            if (item.totalUnits! % item.packSize! !== 0) {
-              throw new Error(
-                `${product.name}: ${item.totalUnits} quả không chia hết cho ${item.packSize}. ` +
-                  `Vui lòng nhập số lượng chia hết.`
-              );
-            }
-
-            // Find or create the pack product
-            const packProduct = await findOrCreatePackProduct(tx, product, item.packSize!, organizationId);
-
-            productId = packProduct.id;
-            brandName = packProduct.brand;
-            modelName = packProduct.model;
-            numberOfItems = item.totalUnits! / item.packSize!;
-
-            logger.info(
-              {
-                baseProductId: product.id,
-                packProductId: productId,
-                totalUnits: item.totalUnits,
-                packSize: item.packSize,
-                numberOfPacks: numberOfItems,
-              },
-              `Creating ${numberOfItems} packs of ${item.packSize} for ${product.name}`
-            );
-          } else {
-            // INDIVIDUAL ITEM FLOW (paddles, or pack products directly selected)
-            productId = product.id;
-            brandName = product.brand;
-            modelName = product.model;
-            numberOfItems = item.quantity;
-          }
-        } else {
-          // Product must exist - throw error if not found
+        if (!product) {
           throw new Error(`Không tìm thấy sản phẩm với ID: ${item.brand}. Vui lòng tạo sản phẩm trước.`);
         }
 
-        // Create shipment items with unique QR codes for each quantity/pack
-        for (let i = 0; i < numberOfItems; i++) {
-          const itemId = `itm_${Date.now()}_${sequenceNumber}_${i}`;
-          const qrCode = generateShortCode();
+        const isPackableWithConfig =
+          isPackableType(product.productType) &&
+          !product.isPackProduct &&
+          item.isPackableProduct &&
+          item.totalUnits &&
+          item.packSize;
 
-          await tx.insert(shipmentItems).values({
-            id: itemId,
+        if (isPackableWithConfig) {
+          // Validate divisibility upfront
+          if (item.totalUnits! % item.packSize! !== 0) {
+            throw new Error(
+              `${product.name}: ${item.totalUnits} quả không chia hết cho ${item.packSize}. ` +
+                `Vui lòng nhập số lượng chia hết.`
+            );
+          }
+          const key = `${product.id}_${item.packSize}`;
+          packConfigs.set(key, { product, packSize: item.packSize! });
+        }
+      }
+
+      // Create/fetch all pack products in parallel (much faster than sequential)
+      const packProductsMap = new Map<string, typeof products.$inferSelect>();
+      if (packConfigs.size > 0) {
+        const packResults = await Promise.all(
+          Array.from(packConfigs.entries()).map(async ([key, { product, packSize }]) => {
+            const packProduct = await findOrCreatePackProduct(tx, product, packSize, organizationId);
+            return { key, packProduct };
+          })
+        );
+        for (const { key, packProduct } of packResults) {
+          packProductsMap.set(key, packProduct);
+        }
+      }
+
+      // ============================================================
+      // PHASE 3: Pre-generate ALL shipment items in memory (no DB calls)
+      // This includes generating unique QR codes with collision detection
+      // ============================================================
+      type ShipmentItemInsert = typeof shipmentItems.$inferInsert;
+      const itemsToInsert: ShipmentItemInsert[] = [];
+      const generatedQrCodes = new Set<string>();
+      let sequenceNumber = 1;
+
+      for (const item of items) {
+        const product = productsMap.get(item.brand)!; // Already validated above
+
+        let productId: string;
+        let numberOfItems: number;
+
+        const isPackableWithConfig =
+          isPackableType(product.productType) &&
+          !product.isPackProduct &&
+          item.isPackableProduct &&
+          item.totalUnits &&
+          item.packSize;
+
+        if (isPackableWithConfig) {
+          // BALL PACK PRODUCT FLOW
+          const packKey = `${product.id}_${item.packSize}`;
+          const packProduct = packProductsMap.get(packKey)!;
+
+          productId = packProduct.id;
+          numberOfItems = item.totalUnits! / item.packSize!;
+
+          logger.info(
+            {
+              baseProductId: product.id,
+              packProductId: productId,
+              totalUnits: item.totalUnits,
+              packSize: item.packSize,
+              numberOfPacks: numberOfItems,
+            },
+            `Creating ${numberOfItems} packs of ${item.packSize} for ${product.name}`
+          );
+        } else {
+          // INDIVIDUAL ITEM FLOW (paddles, or pack products directly selected)
+          productId = product.id;
+          numberOfItems = item.quantity;
+        }
+
+        // Generate all items for this product line
+        for (let i = 0; i < numberOfItems; i++) {
+          // Generate unique QR code with collision detection
+          let qrCode: string;
+          let attempts = 0;
+          const maxAttempts = 100;
+
+          do {
+            qrCode = generateShortCode();
+            attempts++;
+          } while (generatedQrCodes.has(qrCode) && attempts < maxAttempts);
+
+          if (generatedQrCodes.has(qrCode)) {
+            throw new Error(`Không thể tạo mã QR duy nhất sau ${maxAttempts} lần thử. Vui lòng thử lại.`);
+          }
+          generatedQrCodes.add(qrCode);
+
+          itemsToInsert.push({
+            id: `itm_${shipmentId}_${sequenceNumber}_${i}`,
             organizationId,
             shipmentId,
             productId,
@@ -222,22 +269,23 @@ export async function createShipmentAction(
             qrCode,
             status: 'pending',
           });
-
-          processedItems.push({
-            id: itemId,
-            productId,
-            qrCode,
-            brand: brandName,
-            model: modelName,
-          });
         }
 
         sequenceNumber += numberOfItems;
       }
 
+      // ============================================================
+      // PHASE 4: Batch INSERT in chunks (dramatically reduces DB round trips)
+      // Instead of 10,000 individual INSERTs, we do ~20 batch INSERTs
+      // ============================================================
+      for (let i = 0; i < itemsToInsert.length; i += BATCH_INSERT_CHUNK_SIZE) {
+        const chunk = itemsToInsert.slice(i, i + BATCH_INSERT_CHUNK_SIZE);
+        await tx.insert(shipmentItems).values(chunk);
+      }
+
       return {
         shipmentId,
-        items: processedItems,
+        itemCount: itemsToInsert.length,
       };
     });
 
@@ -248,8 +296,8 @@ export async function createShipmentAction(
       shipmentId: result.shipmentId,
       receiptNumber,
       supplierName,
-      itemCount: result.items.length,
-    }, `User ${userName} created shipment ${result.shipmentId} with ${result.items.length} items`);
+      itemCount: result.itemCount,
+    }, `User ${userName} created shipment ${result.shipmentId} with ${result.itemCount} items`);
 
     // Revalidate paths (products may have new pack products)
     revalidatePath('/products');
