@@ -1,15 +1,9 @@
 import { PDFDocument, PDFPage, rgb } from "pdf-lib";
 import QRCode from "qrcode";
-import sharp from "sharp";
-
-// Limit Sharp's internal cache to prevent memory leaks on repeated generation
-sharp.cache({ memory: 50, files: 20, items: 100 });
-sharp.concurrency(2); // Limit concurrent operations
 import {
   type TemplateConfig,
   type SlotCoordinate,
   cmToPoints,
-  previewToPDFCoordinate,
   calculateCenteredPosition,
   loadTemplateConfig,
 } from "./template-config-schema";
@@ -69,76 +63,53 @@ export interface PDFGenerationOptions {
   qrCodeOptions?: {
     errorCorrectionLevel?: "L" | "M" | "Q" | "H";
     margin?: number;
-    color?: {
-      dark?: string;
-      light?: string;
-    };
   };
 }
 
 /**
- * Generate QR code as PNG buffer
+ * QR code matrix data for vector rendering
  */
-async function generateQRCodePNG(
+interface QRMatrix {
+  modules: boolean[][];
+  size: number;
+}
+
+/**
+ * Get QR code as raw matrix for vector rendering
+ * Uses qrcode library's create() method to get module data
+ */
+function getQRCodeMatrix(
   data: string,
-  sizeCm: number,
-  options?: PDFGenerationOptions["qrCodeOptions"]
-): Promise<Buffer> {
-  const sizePixels = Math.round(cmToPoints(sizeCm) * 2); // 2x resolution for quality
+  errorCorrectionLevel: "L" | "M" | "Q" | "H" = "L"
+): QRMatrix {
+  const qr = QRCode.create(data, { errorCorrectionLevel });
+  const size = qr.modules.size;
+  const modules: boolean[][] = [];
 
-  // Generate QR code as data URL with transparent background
-  const qrDataURL = await QRCode.toDataURL(data, {
-    errorCorrectionLevel: options?.errorCorrectionLevel ?? "L",
-    margin: options?.margin ?? 1,
-    width: sizePixels,
-    color: {
-      dark: options?.color?.dark ?? "#000000",
-      light: "#00000000", // Transparent background (RGBA)
-    },
-  });
+  for (let row = 0; row < size; row++) {
+    modules[row] = [];
+    for (let col = 0; col < size; col++) {
+      // qr.modules.get() returns 1 for dark, 0 for light
+      modules[row]![col] = qr.modules.get(row, col) === 1;
+    }
+  }
 
-  // Convert data URL to buffer
-  const base64Data = qrDataURL.replace(/^data:image\/png;base64,/, "");
-  const buffer = Buffer.from(base64Data, "base64");
-
-  // Process with sharp: rotate -90° to match template coordinate system
-  return sharp(buffer)
-    .rotate(-90, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
-    .resize(sizePixels, sizePixels, {
-      fit: "contain",
-      background: { r: 0, g: 0, b: 0, alpha: 0 }, // Transparent background
-    })
-    .png()
-    .toBuffer();
+  return { modules, size };
 }
 
 /**
- * Generate QR codes for a single page worth of items
- * This limits memory usage by only holding one page's worth of buffers at a time
+ * Draw QR code as vector rectangles at specific position on PDF page
+ * Vector rendering = perfect print quality at any size, smaller file size
  */
-async function generateQRCodesForPage(
-  items: QRCodeItem[],
-  qrSizeCm: number,
-  options?: PDFGenerationOptions["qrCodeOptions"]
-): Promise<Buffer[]> {
-  return Promise.all(
-    items.map((item) => generateQRCodePNG(item.url, qrSizeCm, options))
-  );
-}
-
-/**
- * Embed QR code at specific position on PDF page
- */
-async function embedQRCodeAtPosition(
-  pdfDoc: PDFDocument,
+function embedQRCodeVectorAtPosition(
   page: PDFPage,
-  qrBuffer: Buffer,
+  data: string,
   slot: SlotCoordinate,
   config: TemplateConfig,
-  rotation: 0 | 90 | 180 | 270 = 0
-): Promise<void> {
-  // Embed PNG image
-  const qrImage = await pdfDoc.embedPng(qrBuffer);
+  rotation: 0 | 90 | 180 | 270 = 0,
+  errorCorrectionLevel: "L" | "M" | "Q" | "H" = "L"
+): void {
+  const qrMatrix = getQRCodeMatrix(data, errorCorrectionLevel);
 
   // Get QR dimensions in cm
   const qrWidthCm = config.qrCodeSize.width;
@@ -170,18 +141,36 @@ async function embedQRCodeAtPosition(
   );
 
   // Convert to points
-  const pdfX = cmToPoints(transformed.x);
-  const pdfY = cmToPoints(transformed.y);
-  const qrWidth = cmToPoints(qrWidthCm);
-  const qrHeight = cmToPoints(qrHeightCm);
+  const baseX = cmToPoints(transformed.x);
+  const baseY = cmToPoints(transformed.y);
+  const qrWidthPt = cmToPoints(qrWidthCm);
 
-  // Draw QR code on page
-  page.drawImage(qrImage, {
-    x: pdfX,
-    y: pdfY,
-    width: qrWidth,
-    height: qrHeight,
-  });
+  // Calculate module size (QR code modules + 1 unit quiet zone on each side)
+  // Standard QR quiet zone is 4 modules, but we use 1 for compact labels
+  const quietZone = 1;
+  const moduleSize = qrWidthPt / (qrMatrix.size + quietZone * 2);
+
+  // Draw each dark module as a filled rectangle
+  // Note: We apply -90° rotation to match the original PNG behavior
+  // by swapping row/col and adjusting the coordinate calculation
+  for (let row = 0; row < qrMatrix.size; row++) {
+    for (let col = 0; col < qrMatrix.size; col++) {
+      if (qrMatrix.modules[row]![col]) {
+        // Apply -90° rotation transformation:
+        // In rotated space: new_col = row, new_row = (size - 1 - col)
+        const rotatedRow = qrMatrix.size - 1 - col;
+        const rotatedCol = row;
+
+        page.drawRectangle({
+          x: baseX + (rotatedCol + quietZone) * moduleSize,
+          y: baseY + (rotatedRow + quietZone) * moduleSize,
+          width: moduleSize,
+          height: moduleSize,
+          color: rgb(0, 0, 0),
+        });
+      }
+    }
+  }
 }
 
 /**
@@ -212,7 +201,10 @@ export async function generateTemplatePDFWithQRCodes(
   const slotsPerPage = config.grid.totalSlots;
   const totalPages = Math.ceil(items.length / slotsPerPage);
 
-  // Process each page - generate QR codes per-page to limit memory usage
+  // Get error correction level from options
+  const errorCorrectionLevel = options.qrCodeOptions?.errorCorrectionLevel ?? "L";
+
+  // Process each page - vector drawing is memory efficient (no buffers)
   for (let pageIndex = 0; pageIndex < totalPages; pageIndex++) {
     // Copy template page from source document (preserves original formatting)
     const [copiedPage] = await pdfDoc.copyPages(templateDoc, [0]);
@@ -226,17 +218,10 @@ export async function generateTemplatePDFWithQRCodes(
     const endIdx = Math.min(startIdx + slotsPerPage, items.length);
     const pageItems = items.slice(startIdx, endIdx);
 
-    // Generate QR codes for THIS PAGE ONLY (memory optimization)
-    const qrBuffers = await generateQRCodesForPage(
-      pageItems,
-      config.qrCodeSize.width,
-      options.qrCodeOptions
-    );
-
-    // Overlay QR codes for this page
+    // Draw QR codes as vector rectangles (no PNG buffers needed)
     for (let i = 0; i < pageItems.length; i++) {
       const slot = config.coordinates[i];
-      const qrBuffer = qrBuffers[i];
+      const item = pageItems[i];
 
       if (!slot) {
         console.warn(
@@ -245,25 +230,23 @@ export async function generateTemplatePDFWithQRCodes(
         continue;
       }
 
-      if (!qrBuffer) {
+      if (!item) {
         console.warn(
-          `No QR buffer available for position ${i} on page ${pageIndex + 1}`
+          `No item available for position ${i} on page ${pageIndex + 1}`
         );
         continue;
       }
 
-      await embedQRCodeAtPosition(
-        pdfDoc,
+      // Draw QR code as vector rectangles - perfect print quality
+      embedQRCodeVectorAtPosition(
         newPage,
-        qrBuffer,
+        item.url,
         slot,
         config,
-        pageRotation // Use actual page rotation for coordinate transformation
+        pageRotation,
+        errorCorrectionLevel
       );
     }
-
-    // Clear buffer references to allow GC (memory optimization)
-    qrBuffers.length = 0;
   }
 
   // Save PDF to buffer
