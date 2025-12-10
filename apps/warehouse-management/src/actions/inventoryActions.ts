@@ -3,40 +3,30 @@
 import { db } from '~/server/db';
 import { inventory, products, bundles, storages, orders, user } from '~/server/db/schema';
 import { eq, desc, sql, and, ilike, or } from 'drizzle-orm';
-import type { ActionResult } from './types';
+import type {
+  ActionResult,
+  InventoryStatus,
+  InventorySourceType,
+  ProductRelation,
+  BundleRelation,
+  StorageRelation,
+  OrderRelation,
+  UserRelation,
+} from './types';
 import type { PaginationParams, PaginatedResult } from '~/lib/queries/paginateQuery';
 import { requireOrgContext } from '~/lib/authorization';
 import { getDbErrorMessage } from '~/lib/error-handling';
 
 // Types for Inventory
 export type InventoryItem = typeof inventory.$inferSelect;
-export type InventoryStatus = 'in_stock' | 'allocated' | 'sold' | 'shipped' | 'returned';
-export type InventorySourceType = 'assembly' | 'inbound' | 'return';
+export type { InventoryStatus, InventorySourceType } from './types';
 
 export interface InventoryWithRelations extends InventoryItem {
-  product: {
-    id: string;
-    name: string;
-    brand: string;
-    model: string;
-  } | null;
-  bundle: {
-    id: string;
-    name: string;
-    qrCode: string;
-  } | null;
-  storage: {
-    id: string;
-    name: string;
-  } | null;
-  order: {
-    id: string;
-    orderNumber: string;
-  } | null;
-  createdByUser: {
-    id: string;
-    name: string;
-  } | null;
+  product: ProductRelation | null;
+  bundle: BundleRelation | null;
+  storage: StorageRelation | null;
+  order: OrderRelation | null;
+  createdByUser: UserRelation | null;
 }
 
 export interface InventoryFilters {

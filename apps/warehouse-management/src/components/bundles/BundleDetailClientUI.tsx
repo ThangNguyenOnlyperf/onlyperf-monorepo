@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '~/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card';
 import { Button } from '~/components/ui/button';
 import { Badge } from '~/components/ui/badge';
 import {
@@ -14,16 +14,6 @@ import {
   TableHeader,
   TableRow,
 } from '~/components/ui/table';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '~/components/ui/alert-dialog';
 import { Progress } from '~/components/ui/progress';
 import {
   Package,
@@ -31,49 +21,27 @@ import {
   QrCode,
   Play,
   Trash2,
-  Loader2,
-  Clock,
   CheckCircle2,
-  ShoppingCart,
   User,
   Calendar,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { deleteBundleAction, type BundleWithItems, type BundleStatus } from '~/actions/bundleActions';
+import { DeleteConfirmDialog } from '~/components/ui/DeleteConfirmDialog';
+import { deleteBundleAction, type BundleWithItems } from '~/actions/bundleActions';
+import type { BundleStatus } from '~/actions/types';
+import { formatDate } from '~/lib/utils/formatDate';
+import { bundleStatusConfig } from '~/lib/constants/statusConfig';
 
 interface BundleDetailClientUIProps {
   bundle: BundleWithItems;
 }
-
-const statusConfig: Record<BundleStatus, { label: string; color: string; icon: React.ElementType }> = {
-  pending: {
-    label: 'Chờ xử lý',
-    color: 'bg-amber-100 text-amber-800 border-amber-300',
-    icon: Clock,
-  },
-  assembling: {
-    label: 'Đang lắp ráp',
-    color: 'bg-blue-100 text-blue-800 border-blue-300',
-    icon: Play,
-  },
-  completed: {
-    label: 'Hoàn thành',
-    color: 'bg-emerald-100 text-emerald-800 border-emerald-300',
-    icon: CheckCircle2,
-  },
-  sold: {
-    label: 'Đã bán',
-    color: 'bg-purple-100 text-purple-800 border-purple-300',
-    icon: ShoppingCart,
-  },
-};
 
 export default function BundleDetailClientUI({ bundle }: BundleDetailClientUIProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
-  const statusInfo = statusConfig[bundle.status as BundleStatus];
+  const statusInfo = bundleStatusConfig[bundle.status as BundleStatus];
   const StatusIcon = statusInfo?.icon ?? Package;
 
   const totalExpected = bundle.items.reduce((sum, item) => sum + item.expectedCount, 0);
@@ -90,14 +58,6 @@ export default function BundleDetailClientUI({ bundle }: BundleDetailClientUIPro
         toast.error(result.message);
       }
       setShowDeleteDialog(false);
-    });
-  };
-
-  const formatDate = (date: Date | null) => {
-    if (!date) return '-';
-    return new Date(date).toLocaleString('vi-VN', {
-      dateStyle: 'medium',
-      timeStyle: 'short',
     });
   };
 
@@ -248,7 +208,7 @@ export default function BundleDetailClientUI({ bundle }: BundleDetailClientUIPro
               <div className="flex items-center gap-2 text-sm">
                 <Calendar className="h-4 w-4 text-muted-foreground" />
                 <span className="text-muted-foreground">Ngày tạo:</span>
-                <span>{formatDate(bundle.createdAt)}</span>
+                <span>{formatDate(bundle.createdAt, 'medium')}</span>
               </div>
 
               {bundle.createdByUser && (
@@ -263,7 +223,7 @@ export default function BundleDetailClientUI({ bundle }: BundleDetailClientUIPro
                 <div className="flex items-center gap-2 text-sm">
                   <Play className="h-4 w-4 text-muted-foreground" />
                   <span className="text-muted-foreground">Bắt đầu:</span>
-                  <span>{formatDate(bundle.assemblyStartedAt)}</span>
+                  <span>{formatDate(bundle.assemblyStartedAt, 'medium')}</span>
                 </div>
               )}
 
@@ -271,7 +231,7 @@ export default function BundleDetailClientUI({ bundle }: BundleDetailClientUIPro
                 <div className="flex items-center gap-2 text-sm">
                   <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
                   <span className="text-muted-foreground">Hoàn thành:</span>
-                  <span>{formatDate(bundle.assemblyCompletedAt)}</span>
+                  <span>{formatDate(bundle.assemblyCompletedAt, 'medium')}</span>
                 </div>
               )}
 
@@ -310,26 +270,14 @@ export default function BundleDetailClientUI({ bundle }: BundleDetailClientUIPro
       </div>
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Xác nhận xóa lô hàng</AlertDialogTitle>
-            <AlertDialogDescription>
-              Bạn có chắc muốn xóa lô hàng &quot;{bundle.name}&quot;? Hành động này không thể hoàn tác.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Hủy</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              className="bg-destructive hover:bg-destructive/90"
-              disabled={isPending}
-            >
-              {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Xóa'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteConfirmDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        title="Xác nhận xóa lô hàng"
+        description={`Bạn có chắc muốn xóa lô hàng "${bundle.name}"? Hành động này không thể hoàn tác.`}
+        onConfirm={handleDelete}
+        isPending={isPending}
+      />
     </div>
   );
 }

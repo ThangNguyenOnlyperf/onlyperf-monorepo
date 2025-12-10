@@ -4,7 +4,7 @@ import { db } from '~/server/db';
 import { qrPool } from '~/server/db/schema';
 import { generateShortCode } from '~/lib/product-code';
 import { eq, desc, sql, and } from 'drizzle-orm';
-import type { ActionResult } from './types';
+import type { ActionResult, QRPoolStatus } from './types';
 import type { PaginationParams, PaginatedResult } from '~/lib/queries/paginateQuery';
 import { requireOrgContext } from '~/lib/authorization';
 import { getDbErrorMessage } from '~/lib/error-handling';

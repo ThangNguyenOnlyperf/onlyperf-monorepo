@@ -30,8 +30,11 @@ import {
 } from '~/components/ui/table';
 import { QrCode, Plus, Loader2, Package, Check, Clock, Download, ChevronDown, FileDown } from 'lucide-react';
 import { toast } from 'sonner';
+import { StatCard } from '~/components/ui/StatCard';
+import { EmptyState } from '~/components/ui/EmptyState';
 import { generateQRPoolBatchAction, getQRPoolStatsAction, getQRBatchesAction } from '~/actions/qrPoolActions';
 import type { QRPoolStats, QRBatch } from '~/actions/qrPoolActions';
+import { formatDate } from '~/lib/utils/formatDate';
 
 interface QRPoolClientUIProps {
   initialStats: QRPoolStats;
@@ -146,49 +149,31 @@ export default function QRPoolClientUI({ initialStats, initialBatches }: QRPoolC
     });
   };
 
-  const formatDate = (date: Date) => {
-    return new Date(date).toLocaleString('vi-VN', {
-      dateStyle: 'short',
-      timeStyle: 'short',
-    });
-  };
-
   return (
     <div className="space-y-6">
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="bg-gradient-to-br from-emerald-500/10 to-emerald-600/10 border-emerald-500/20">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-emerald-700">Có sẵn</CardTitle>
-            <Check className="h-4 w-4 text-emerald-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-emerald-700">{stats.available.toLocaleString()}</div>
-            <p className="text-xs text-emerald-600/80">QR codes sẵn sàng sử dụng</p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/10 border-blue-500/20">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-blue-700">Đã sử dụng</CardTitle>
-            <Package className="h-4 w-4 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-700">{stats.used.toLocaleString()}</div>
-            <p className="text-xs text-blue-600/80">Đã gán cho sản phẩm</p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-purple-500/10 to-purple-600/10 border-purple-500/20">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-purple-700">Tổng cộng</CardTitle>
-            <QrCode className="h-4 w-4 text-purple-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-purple-700">{stats.total.toLocaleString()}</div>
-            <p className="text-xs text-purple-600/80">Tổng QR codes đã tạo</p>
-          </CardContent>
-        </Card>
+        <StatCard
+          title="Có sẵn"
+          value={stats.available}
+          subtitle="QR codes sẵn sàng sử dụng"
+          icon={Check}
+          colorScheme="emerald"
+        />
+        <StatCard
+          title="Đã sử dụng"
+          value={stats.used}
+          subtitle="Đã gán cho sản phẩm"
+          icon={Package}
+          colorScheme="blue"
+        />
+        <StatCard
+          title="Tổng cộng"
+          value={stats.total}
+          subtitle="Tổng QR codes đã tạo"
+          icon={QrCode}
+          colorScheme="purple"
+        />
       </div>
 
       {/* Generate Button */}
@@ -255,11 +240,11 @@ export default function QRPoolClientUI({ initialStats, initialBatches }: QRPoolC
         </CardHeader>
         <CardContent>
           {batches.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <QrCode className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>Chưa có mã QR nào được tạo</p>
-              <p className="text-sm">Nhấn &quot;Tạo mã QR mới&quot; để bắt đầu</p>
-            </div>
+            <EmptyState
+              icon={QrCode}
+              title="Chưa có mã QR nào được tạo"
+              description='Nhấn "Tạo mã QR mới" để bắt đầu'
+            />
           ) : (
             <Table>
               <TableHeader>

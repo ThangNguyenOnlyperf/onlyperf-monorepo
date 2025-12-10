@@ -4,7 +4,7 @@ import { db } from '~/server/db';
 import { bundles, bundleItems, products, inventory, user } from '~/server/db/schema';
 import { generateShortCode } from '~/lib/product-code';
 import { eq, desc, sql, and, inArray } from 'drizzle-orm';
-import type { ActionResult } from './types';
+import type { ActionResult, BundleStatus, ProductRelation, UserRelation } from './types';
 import type { PaginationParams, PaginatedResult } from '~/lib/queries/paginateQuery';
 import { requireOrgContext } from '~/lib/authorization';
 import { getDbErrorMessage } from '~/lib/error-handling';
@@ -12,7 +12,6 @@ import { getDbErrorMessage } from '~/lib/error-handling';
 // Types for Bundles
 export type Bundle = typeof bundles.$inferSelect;
 export type BundleItem = typeof bundleItems.$inferSelect;
-export type BundleStatus = 'pending' | 'assembling' | 'completed' | 'sold';
 
 export interface BundleItemInput {
   productId: string;
@@ -22,21 +21,10 @@ export interface BundleItemInput {
 
 export interface BundleWithItems extends Bundle {
   items: (BundleItem & {
-    product: {
-      id: string;
-      name: string;
-      brand: string;
-      model: string;
-    } | null;
+    product: ProductRelation | null;
   })[];
-  createdByUser: {
-    id: string;
-    name: string;
-  } | null;
-  assembledByUser: {
-    id: string;
-    name: string;
-  } | null;
+  createdByUser: UserRelation | null;
+  assembledByUser: UserRelation | null;
   _count: {
     inventoryItems: number;
   };

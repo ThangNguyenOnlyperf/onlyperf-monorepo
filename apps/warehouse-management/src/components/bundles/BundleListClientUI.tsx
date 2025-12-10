@@ -21,16 +21,6 @@ import {
   TableRow,
 } from '~/components/ui/table';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '~/components/ui/alert-dialog';
-import {
   Pagination,
   PaginationContent,
   PaginationItem,
@@ -38,55 +28,25 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from '~/components/ui/pagination';
-import {
-  Package,
-  Plus,
-  Loader2,
-  Eye,
-  Trash2,
-  Clock,
-  Play,
-  CheckCircle2,
-  ShoppingCart,
-  QrCode,
-} from 'lucide-react';
+import { Package, Plus, Eye, Trash2, QrCode } from 'lucide-react';
 import { toast } from 'sonner';
 import { Progress } from '~/components/ui/progress';
+import { EmptyState } from '~/components/ui/EmptyState';
+import { DeleteConfirmDialog } from '~/components/ui/DeleteConfirmDialog';
 import {
   getBundlesAction,
   deleteBundleAction,
   type BundleListItem,
-  type BundleStatus,
   type BundleFilters,
 } from '~/actions/bundleActions';
+import type { BundleStatus } from '~/actions/types';
 import type { PaginatedResult } from '~/lib/queries/paginateQuery';
+import { formatDate } from '~/lib/utils/formatDate';
+import { bundleStatusConfig } from '~/lib/constants/statusConfig';
 
 interface BundleListClientUIProps {
   initialBundles: PaginatedResult<BundleListItem>;
 }
-
-const statusConfig: Record<BundleStatus, { label: string; color: string; icon: React.ElementType }> = {
-  pending: {
-    label: 'Chờ xử lý',
-    color: 'bg-amber-100 text-amber-800 border-amber-300',
-    icon: Clock,
-  },
-  assembling: {
-    label: 'Đang lắp ráp',
-    color: 'bg-blue-100 text-blue-800 border-blue-300',
-    icon: Play,
-  },
-  completed: {
-    label: 'Hoàn thành',
-    color: 'bg-emerald-100 text-emerald-800 border-emerald-300',
-    icon: CheckCircle2,
-  },
-  sold: {
-    label: 'Đã bán',
-    color: 'bg-purple-100 text-purple-800 border-purple-300',
-    icon: ShoppingCart,
-  },
-};
 
 export default function BundleListClientUI({ initialBundles }: BundleListClientUIProps) {
   const [bundles, setBundles] = useState<PaginatedResult<BundleListItem>>(initialBundles);
@@ -149,14 +109,6 @@ export default function BundleListClientUI({ initialBundles }: BundleListClientU
     });
   };
 
-  const formatDate = (date: Date | null) => {
-    if (!date) return '-';
-    return new Date(date).toLocaleString('vi-VN', {
-      dateStyle: 'short',
-      timeStyle: 'short',
-    });
-  };
-
   const { currentPage, totalPages } = bundles.metadata;
 
   return (
@@ -194,11 +146,11 @@ export default function BundleListClientUI({ initialBundles }: BundleListClientU
         </CardHeader>
         <CardContent>
           {bundles.data.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>Chưa có lô hàng nào</p>
-              <p className="text-sm">Nhấn &quot;Tạo lô hàng mới&quot; để bắt đầu</p>
-            </div>
+            <EmptyState
+              icon={Package}
+              title="Chưa có lô hàng nào"
+              description='Nhấn "Tạo lô hàng mới" để bắt đầu'
+            />
           ) : (
             <>
               <Table>
@@ -214,7 +166,7 @@ export default function BundleListClientUI({ initialBundles }: BundleListClientU
                 </TableHeader>
                 <TableBody>
                   {bundles.data.map((bundle) => {
-                    const statusInfo = statusConfig[bundle.status as BundleStatus];
+                    const statusInfo = bundleStatusConfig[bundle.status as BundleStatus];
                     const StatusIcon = statusInfo?.icon ?? Package;
                     const progress = bundle.totalExpected > 0
                       ? Math.round((bundle.totalScanned / bundle.totalExpected) * 100)
@@ -330,26 +282,14 @@ export default function BundleListClientUI({ initialBundles }: BundleListClientU
       </Card>
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Xác nhận xóa lô hàng</AlertDialogTitle>
-            <AlertDialogDescription>
-              Bạn có chắc muốn xóa lô hàng &quot;{deleteTarget?.name}&quot;? Hành động này không thể hoàn tác.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Hủy</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              className="bg-destructive hover:bg-destructive/90"
-              disabled={isPending}
-            >
-              {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Xóa'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DeleteConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={() => setDeleteTarget(null)}
+        title="Xác nhận xóa lô hàng"
+        description={`Bạn có chắc muốn xóa lô hàng "${deleteTarget?.name}"? Hành động này không thể hoàn tác.`}
+        onConfirm={handleDelete}
+        isPending={isPending}
+      />
     </div>
   );
 }

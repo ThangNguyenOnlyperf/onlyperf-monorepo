@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card';
 import { Button } from '~/components/ui/button';
 import { Input } from '~/components/ui/input';
@@ -49,61 +48,28 @@ import {
   Layers,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { StatCard } from '~/components/ui/StatCard';
+import { EmptyState } from '~/components/ui/EmptyState';
 import {
   getInventoryAction,
-  getInventoryStatsAction,
   type InventoryStats,
   type InventoryWithRelations,
   type InventoryFilters,
-  type InventoryStatus,
 } from '~/actions/inventoryActions';
+import type { InventoryStatus } from '~/actions/types';
 import type { PaginatedResult } from '~/lib/queries/paginateQuery';
+import { formatDate } from '~/lib/utils/formatDate';
+import { inventoryStatusConfig, sourceTypeLabels } from '~/lib/constants/statusConfig';
 
 interface InventoryClientUIProps {
   initialStats: InventoryStats;
   initialInventory: PaginatedResult<InventoryWithRelations>;
 }
 
-const statusConfig: Record<InventoryStatus, { label: string; color: string; icon: React.ElementType }> = {
-  in_stock: {
-    label: 'Trong kho',
-    color: 'bg-emerald-100 text-emerald-800 border-emerald-300',
-    icon: PackageCheck,
-  },
-  allocated: {
-    label: 'Đã phân bổ',
-    color: 'bg-amber-100 text-amber-800 border-amber-300',
-    icon: Package,
-  },
-  sold: {
-    label: 'Đã bán',
-    color: 'bg-blue-100 text-blue-800 border-blue-300',
-    icon: ShoppingCart,
-  },
-  shipped: {
-    label: 'Đã giao',
-    color: 'bg-purple-100 text-purple-800 border-purple-300',
-    icon: Truck,
-  },
-  returned: {
-    label: 'Đã trả',
-    color: 'bg-red-100 text-red-800 border-red-300',
-    icon: RotateCcw,
-  },
-};
-
-const sourceTypeLabels: Record<string, string> = {
-  assembly: 'Lắp ráp',
-  inbound: 'Nhập kho',
-  return: 'Trả hàng',
-};
-
 export default function InventoryClientUI({
   initialStats,
   initialInventory,
 }: InventoryClientUIProps) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
   const [stats, setStats] = useState<InventoryStats>(initialStats);
   const [inventory, setInventory] = useState<PaginatedResult<InventoryWithRelations>>(initialInventory);
   const [isPending, startTransition] = useTransition();
@@ -165,79 +131,18 @@ export default function InventoryClientUI({
     setIsDetailOpen(true);
   };
 
-  const formatDate = (date: Date | null) => {
-    if (!date) return '-';
-    return new Date(date).toLocaleString('vi-VN', {
-      dateStyle: 'short',
-      timeStyle: 'short',
-    });
-  };
-
   const { currentPage, totalPages } = inventory.metadata;
 
   return (
     <div className="space-y-6">
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <Card className="bg-gradient-to-br from-emerald-500/10 to-emerald-600/10 border-emerald-500/20">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-emerald-700">Trong kho</CardTitle>
-            <PackageCheck className="h-4 w-4 text-emerald-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-emerald-700">{stats.inStock.toLocaleString()}</div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-amber-500/10 to-amber-600/10 border-amber-500/20">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-amber-700">Đã phân bổ</CardTitle>
-            <Package className="h-4 w-4 text-amber-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-amber-700">{stats.allocated.toLocaleString()}</div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/10 border-blue-500/20">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-blue-700">Đã bán</CardTitle>
-            <ShoppingCart className="h-4 w-4 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-700">{stats.sold.toLocaleString()}</div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-purple-500/10 to-purple-600/10 border-purple-500/20">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-purple-700">Đã giao</CardTitle>
-            <Truck className="h-4 w-4 text-purple-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-purple-700">{stats.shipped.toLocaleString()}</div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-red-500/10 to-red-600/10 border-red-500/20">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-red-700">Đã trả</CardTitle>
-            <RotateCcw className="h-4 w-4 text-red-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-700">{stats.returned.toLocaleString()}</div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-slate-500/10 to-slate-600/10 border-slate-500/20">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-slate-700">Tổng cộng</CardTitle>
-            <Layers className="h-4 w-4 text-slate-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-slate-700">{stats.total.toLocaleString()}</div>
-          </CardContent>
-        </Card>
+        <StatCard title="Trong kho" value={stats.inStock} icon={PackageCheck} colorScheme="emerald" />
+        <StatCard title="Đã phân bổ" value={stats.allocated} icon={Package} colorScheme="amber" />
+        <StatCard title="Đã bán" value={stats.sold} icon={ShoppingCart} colorScheme="blue" />
+        <StatCard title="Đã giao" value={stats.shipped} icon={Truck} colorScheme="purple" />
+        <StatCard title="Đã trả" value={stats.returned} icon={RotateCcw} colorScheme="red" />
+        <StatCard title="Tổng cộng" value={stats.total} icon={Layers} colorScheme="slate" />
       </div>
 
       {/* Filters */}
@@ -287,10 +192,7 @@ export default function InventoryClientUI({
         </CardHeader>
         <CardContent>
           {inventory.data.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>Chưa có sản phẩm nào trong kho</p>
-            </div>
+            <EmptyState icon={Package} title="Chưa có sản phẩm nào trong kho" />
           ) : (
             <>
               <Table>
@@ -306,7 +208,7 @@ export default function InventoryClientUI({
                 </TableHeader>
                 <TableBody>
                   {inventory.data.map((item) => {
-                    const statusInfo = statusConfig[item.status as InventoryStatus];
+                    const statusInfo = inventoryStatusConfig[item.status as InventoryStatus];
                     const StatusIcon = statusInfo?.icon ?? Package;
                     return (
                       <TableRow key={item.id} className="hover:bg-primary/5">
@@ -434,8 +336,8 @@ export default function InventoryClientUI({
               {/* Status */}
               <div className="space-y-2">
                 <h4 className="font-medium">Trạng thái</h4>
-                <Badge className={statusConfig[selectedItem.status as InventoryStatus]?.color}>
-                  {statusConfig[selectedItem.status as InventoryStatus]?.label ?? selectedItem.status}
+                <Badge className={inventoryStatusConfig[selectedItem.status as InventoryStatus]?.color}>
+                  {inventoryStatusConfig[selectedItem.status as InventoryStatus]?.label ?? selectedItem.status}
                 </Badge>
               </div>
 

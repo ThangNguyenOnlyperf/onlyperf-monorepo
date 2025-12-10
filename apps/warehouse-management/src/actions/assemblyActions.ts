@@ -3,7 +3,7 @@
 import { db } from '~/server/db';
 import { bundles, bundleItems, products, qrPool, inventory } from '~/server/db/schema';
 import { eq, and, asc } from 'drizzle-orm';
-import type { ActionResult } from './types';
+import type { ActionResult, ProductRelationWithPackSize } from './types';
 import { requireOrgContext } from '~/lib/authorization';
 import { getDbErrorMessage } from '~/lib/error-handling';
 
@@ -23,13 +23,7 @@ export interface AssemblyBundleItem {
   expectedCount: number;
   scannedCount: number;
   phaseOrder: number;
-  product: {
-    id: string;
-    name: string;
-    brand: string;
-    model: string;
-    packSize: number | null;
-  } | null;
+  product: ProductRelationWithPackSize | null;
 }
 
 export interface AssemblySession {
