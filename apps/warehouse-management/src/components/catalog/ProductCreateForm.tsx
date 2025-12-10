@@ -54,15 +54,18 @@ export default function ProductCreateForm({
     defaultValues: {
       brandId: '',
       model: '',
+      sku: '',
       description: '',
       category: '',
-      colorId: '',
-      weight: '',
-      size: '',
-      thickness: '',
-      material: '',
-      handleLength: '',
-      handleCircumference: '',
+      attributes: {
+        colorId: '',
+        weight: '',
+        size: '',
+        thickness: '',
+        material: '',
+        handleLength: '',
+        handleCircumference: '',
+      },
       productType: DEFAULT_PRODUCT_TYPE,
       isPackProduct: false,
       packSize: null,
@@ -183,24 +186,45 @@ export default function ProductCreateForm({
           />
         </div>
 
-        <FormField
-          control={form.control}
-          name="category"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel className="font-medium">Danh mục</FormLabel>
-              <FormControl>
-                <Input
-                  {...field}
-                  placeholder="Nhập danh mục sản phẩm (tùy chọn)"
-                  disabled={isLoading}
-                  className="h-10 border-2 hover:border-primary/30 focus:border-primary focus:ring-2 focus:ring-primary/20"
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="sku"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="font-medium">SKU</FormLabel>
+                <FormControl>
+                  <Input
+                    {...field}
+                    placeholder="Mã SKU (tùy chọn)"
+                    disabled={isLoading}
+                    className="h-10 border-2 hover:border-primary/30 focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="category"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="font-medium">Danh mục</FormLabel>
+                <FormControl>
+                  <Input
+                    {...field}
+                    placeholder="Nhập danh mục sản phẩm (tùy chọn)"
+                    disabled={isLoading}
+                    className="h-10 border-2 hover:border-primary/30 focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
 
         <FormField
           control={form.control}
@@ -228,7 +252,7 @@ export default function ProductCreateForm({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
             <FormField
               control={form.control}
-              name="colorId"
+              name="attributes.colorId"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="font-medium flex items-center justify-between">
@@ -261,7 +285,7 @@ export default function ProductCreateForm({
 
             <FormField
               control={form.control}
-              name="weight"
+              name="attributes.weight"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="font-medium">Trọng lượng</FormLabel>
@@ -280,7 +304,7 @@ export default function ProductCreateForm({
 
             <FormField
               control={form.control}
-              name="size"
+              name="attributes.size"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="font-medium">Kích thước</FormLabel>
@@ -299,7 +323,7 @@ export default function ProductCreateForm({
 
             <FormField
               control={form.control}
-              name="thickness"
+              name="attributes.thickness"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="font-medium">Độ dày</FormLabel>
@@ -318,7 +342,7 @@ export default function ProductCreateForm({
 
             <FormField
               control={form.control}
-              name="material"
+              name="attributes.material"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="font-medium">Chất liệu</FormLabel>
@@ -340,7 +364,7 @@ export default function ProductCreateForm({
               <>
                 <FormField
                   control={form.control}
-                  name="handleLength"
+                  name="attributes.handleLength"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel className="font-medium">Chiều dài cán</FormLabel>
@@ -359,7 +383,7 @@ export default function ProductCreateForm({
 
                 <FormField
                   control={form.control}
-                  name="handleCircumference"
+                  name="attributes.handleCircumference"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel className="font-medium">Chu vi cán</FormLabel>
@@ -400,7 +424,7 @@ export default function ProductCreateForm({
           ...prev,
           { id: color.id, name: color.name, hex: color.hex, createdAt: now, updatedAt: now } as Color,
         ]);
-        form.setValue('colorId', color.id, { shouldValidate: true, shouldDirty: true });
+        form.setValue('attributes.colorId', color.id, { shouldValidate: true, shouldDirty: true });
       }}
     />
     </>

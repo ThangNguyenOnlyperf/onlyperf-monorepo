@@ -108,7 +108,7 @@ export async function getOrderById(orderId: string): Promise<ActionResult<OrderD
       .from(orderItems)
       .leftJoin(products, eq(orderItems.productId, products.id))
       .leftJoin(shipmentItems, eq(orderItems.shipmentItemId, shipmentItems.id))
-      .leftJoin(colors, eq(colors.id, products.colorId))
+      .leftJoin(colors, eq(colors.id, sql`(${products.attributes}->>'colorId')::text`))
       .where(and(
         eq(orderItems.orderId, orderId),
         eq(orderItems.organizationId, organizationId)

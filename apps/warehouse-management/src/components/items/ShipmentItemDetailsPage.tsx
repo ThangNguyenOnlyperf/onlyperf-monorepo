@@ -266,9 +266,9 @@ export default function ShipmentItemDetailsPage({ itemDetails, colors = [] }: Sh
         </Card>
 
         {/* Product Specifications */}
-        {(itemDetails.product.colorName || itemDetails.product.weight || itemDetails.product.size ||
-          itemDetails.product.thickness || itemDetails.product.material ||
-          itemDetails.product.handleLength || itemDetails.product.handleCircumference) && (
+        {(itemDetails.product.colorName || itemDetails.product.attributes?.weight || itemDetails.product.attributes?.size ||
+          itemDetails.product.attributes?.thickness || itemDetails.product.attributes?.material ||
+          itemDetails.product.attributes?.handleLength || itemDetails.product.attributes?.handleCircumference) && (
           <Card className="lg:col-span-2">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -287,63 +287,63 @@ export default function ShipmentItemDetailsPage({ itemDetails, colors = [] }: Sh
                     </div>
                   </div>
                 )}
-                
-                {itemDetails.product.weight && (
+
+                {itemDetails.product.attributes?.weight && (
                   <div className="flex items-start gap-3">
                     <Weight className="h-4 w-4 text-muted-foreground mt-0.5" />
                     <div>
                       <p className="text-sm text-muted-foreground">Trọng lượng</p>
-                      <p className="font-medium">{itemDetails.product.weight}</p>
+                      <p className="font-medium">{itemDetails.product.attributes.weight}</p>
                     </div>
                   </div>
                 )}
-                
-                {itemDetails.product.size && (
+
+                {itemDetails.product.attributes?.size && (
                   <div className="flex items-start gap-3">
                     <Ruler className="h-4 w-4 text-muted-foreground mt-0.5" />
                     <div>
                       <p className="text-sm text-muted-foreground">Kích thước</p>
-                      <p className="font-medium">{itemDetails.product.size}</p>
+                      <p className="font-medium">{itemDetails.product.attributes.size}</p>
                     </div>
                   </div>
                 )}
-                
-                {itemDetails.product.thickness && (
+
+                {itemDetails.product.attributes?.thickness && (
                   <div className="flex items-start gap-3">
                     <Layers className="h-4 w-4 text-muted-foreground mt-0.5" />
                     <div>
                       <p className="text-sm text-muted-foreground">Độ dày</p>
-                      <p className="font-medium">{itemDetails.product.thickness}</p>
+                      <p className="font-medium">{itemDetails.product.attributes.thickness}</p>
                     </div>
                   </div>
                 )}
-                
-                {itemDetails.product.material && (
+
+                {itemDetails.product.attributes?.material && (
                   <div className="flex items-start gap-3">
                     <Package className="h-4 w-4 text-muted-foreground mt-0.5" />
                     <div>
                       <p className="text-sm text-muted-foreground">Chất liệu</p>
-                      <p className="font-medium">{itemDetails.product.material}</p>
+                      <p className="font-medium">{itemDetails.product.attributes.material}</p>
                     </div>
                   </div>
                 )}
-                
-                {itemDetails.product.handleLength && (
+
+                {itemDetails.product.attributes?.handleLength && (
                   <div className="flex items-start gap-3">
                     <Maximize2 className="h-4 w-4 text-muted-foreground mt-0.5" />
                     <div>
                       <p className="text-sm text-muted-foreground">Chiều dài cán</p>
-                      <p className="font-medium">{itemDetails.product.handleLength}</p>
+                      <p className="font-medium">{itemDetails.product.attributes.handleLength}</p>
                     </div>
                   </div>
                 )}
-                
-                {itemDetails.product.handleCircumference && (
+
+                {itemDetails.product.attributes?.handleCircumference && (
                   <div className="flex items-start gap-3">
                     <Circle className="h-4 w-4 text-muted-foreground mt-0.5" />
                     <div>
                       <p className="text-sm text-muted-foreground">Chu vi cán</p>
-                      <p className="font-medium">{itemDetails.product.handleCircumference}</p>
+                      <p className="font-medium">{itemDetails.product.attributes.handleCircumference}</p>
                     </div>
                   </div>
                 )}

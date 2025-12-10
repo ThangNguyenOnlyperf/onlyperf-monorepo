@@ -302,7 +302,8 @@ function buildVariantPayloadForExistingProduct(
     inventory_policy: "deny" | "continue";
     inventory_management: "shopify" | null;
   } = {
-    sku: product.id,
+    // Use sku field if available, otherwise fall back to product id
+    sku: product.sku ?? product.id,
     price: formatPrice(product.price),
     requires_shipping: true,
     inventory_policy: "deny",
@@ -310,7 +311,8 @@ function buildVariantPayloadForExistingProduct(
   };
 
   const colorValue = product.colorName?.trim();
-  const sizeValue = product.size?.trim();
+  // Access size from attributes JSONB
+  const sizeValue = product.attributes?.size?.trim();
 
   for (const option of sortedOptions) {
     const key = `option${option.position}` as const;

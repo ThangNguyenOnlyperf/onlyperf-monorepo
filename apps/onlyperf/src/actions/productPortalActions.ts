@@ -26,7 +26,6 @@ export async function getShipmentItemByQrCode(qrCode: string) {
       product: {
         with: {
           shopifyProduct: true,
-          color: true,
           brand: true,
         },
       },

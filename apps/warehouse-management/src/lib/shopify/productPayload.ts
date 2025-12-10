@@ -1,5 +1,6 @@
 import { products } from "~/server/db/schema";
 import { getProductTypeConfig } from "~/lib/constants/product-types";
+import type { ProductAttributes } from "~/lib/schemas/productSchema";
 
 export type ProductRecord = typeof products.$inferSelect;
 
@@ -7,6 +8,8 @@ export type ProductRecord = typeof products.$inferSelect;
 export type ProductWithColor = ProductRecord & {
   colorName?: string | null;
   colorHex?: string | null;
+  // Ensure attributes is properly typed
+  attributes?: ProductAttributes | null;
 };
 
 interface ShopifyRestVariantInput {
@@ -40,7 +43,8 @@ export interface ShopifyRestProductPayload {
 
 export function buildRestProductPayload(product: ProductWithColor): ShopifyRestProductPayload {
   const color = product.colorName?.trim();
-  const size = product.size?.trim();
+  // Access size from attributes JSONB
+  const size = product.attributes?.size?.trim();
   const isPackProduct = product.isPackProduct ?? false;
   const packSize = product.packSize;
 
@@ -53,7 +57,8 @@ export function buildRestProductPayload(product: ProductWithColor): ShopifyRestP
   }
 
   const variant: ShopifyRestVariantInput = {
-    sku: product.id,
+    // Use sku field if available, otherwise fall back to product id
+    sku: product.sku ?? product.id,
     price: formatPrice(product.price),
     requires_shipping: true,
     inventory_policy: "deny",

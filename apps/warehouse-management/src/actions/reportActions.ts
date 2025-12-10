@@ -175,7 +175,7 @@ export async function getProductTrackingReport(
       })
       .from(shipmentItems)
       .leftJoin(products, eq(shipmentItems.productId, products.id))
-      .leftJoin(colors, eq(colors.id, products.colorId))
+      .leftJoin(colors, eq(colors.id, sql`(${products.attributes}->>'colorId')::text`))
       .leftJoin(shipments, eq(shipmentItems.shipmentId, shipments.id))
       .leftJoin(storages, eq(shipmentItems.storageId, storages.id))
       .leftJoin(orderItems, eq(orderItems.shipmentItemId, shipmentItems.id))

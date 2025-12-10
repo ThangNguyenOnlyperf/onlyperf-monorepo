@@ -9,12 +9,8 @@ import {
 export const ProductType = PRODUCT_TYPES;
 export type { ProductTypeValue };
 
-export const ProductSchema = z.object({
-  brandId: z.string().min(1, 'Thương hiệu là bắt buộc'),
-  model: z.string().min(1, 'Model là bắt buộc').trim(),
-  description: z.string().optional(),
-  category: z.string().optional(),
-  // New product attributes
+// Product attributes schema for JSONB field
+export const ProductAttributesSchema = z.object({
   colorId: z.string().min(1, 'Màu sắc là bắt buộc'),
   weight: z.string().optional(),
   size: z.string().optional(),
@@ -22,6 +18,18 @@ export const ProductSchema = z.object({
   material: z.string().optional(),
   handleLength: z.string().optional(),
   handleCircumference: z.string().optional(),
+});
+
+export type ProductAttributesFormData = z.infer<typeof ProductAttributesSchema>;
+
+export const ProductSchema = z.object({
+  brandId: z.string().min(1, 'Thương hiệu là bắt buộc'),
+  model: z.string().min(1, 'Model là bắt buộc').trim(),
+  sku: z.string().optional(),
+  description: z.string().optional(),
+  category: z.string().optional(),
+  // Dynamic product attributes as nested object
+  attributes: ProductAttributesSchema,
   // Product type fields for pack support
   productType: z.enum(['general', 'individual', 'ball']).default(DEFAULT_PRODUCT_TYPE),
   isPackProduct: z.boolean().optional(),
@@ -39,6 +47,17 @@ export const PackProductSchema = z.object({
 // Use z.input for form data (allows optional fields before defaults are applied)
 export type ProductFormData = z.input<typeof ProductSchema>;
 
+// Product attributes interface (matches JSONB structure)
+export interface ProductAttributes {
+  colorId?: string;
+  weight?: string;
+  size?: string;
+  thickness?: string;
+  material?: string;
+  handleLength?: string;
+  handleCircumference?: string;
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -46,19 +65,15 @@ export interface Product {
   brandId: string | null;
   brandName?: string;
   model: string;
+  sku: string | null;
   qrCode: string | null;
   description: string | null;
   category: string | null;
-  // New product attributes
-  colorId: string | null;
-  colorName?: string | null; // Computed from JOIN with colors table
-  colorHex?: string | null;  // Computed from JOIN with colors table
-  weight: string | null;
-  size: string | null;
-  thickness: string | null;
-  material: string | null;
-  handleLength: string | null;
-  handleCircumference: string | null;
+  // Dynamic product attributes stored as JSONB
+  attributes: ProductAttributes | null;
+  // Computed from JOIN with colors table (based on attributes.colorId)
+  colorName?: string | null;
+  colorHex?: string | null;
   // Product type fields for pack support
   productType: string; // Expected: 'general' | 'individual' | 'ball' - use string for DB compatibility
   isPackProduct: boolean;

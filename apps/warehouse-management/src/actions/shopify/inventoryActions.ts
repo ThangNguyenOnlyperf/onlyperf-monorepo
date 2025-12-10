@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 
 import type { ActionResult } from '../types';
 import { db } from '~/server/db';
@@ -105,18 +105,14 @@ export async function syncShopifyProductAction(
         brand: products.brand,
         brandId: products.brandId,
         model: products.model,
+        sku: products.sku,
         qrCode: products.qrCode,
         description: products.description,
         category: products.category,
-        colorId: products.colorId,
+        // Dynamic attributes as JSONB
+        attributes: products.attributes,
         colorHex: colors.hex,
         colorName: colors.name,
-        weight: products.weight,
-        size: products.size,
-        thickness: products.thickness,
-        material: products.material,
-        handleLength: products.handleLength,
-        handleCircumference: products.handleCircumference,
         price: products.price,
         productType: products.productType,
         isPackProduct: products.isPackProduct,
@@ -126,7 +122,7 @@ export async function syncShopifyProductAction(
         updatedAt: products.updatedAt,
       })
       .from(products)
-      .leftJoin(colors, eq(colors.id, products.colorId))
+      .leftJoin(colors, eq(colors.id, sql`(${products.attributes}->>'colorId')::text`))
       .where(and(
         eq(products.id, productId),
         eq(products.organizationId, organizationId)

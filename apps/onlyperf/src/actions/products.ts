@@ -16,7 +16,6 @@ export async function getCustomerProducts(customerId: string) {
       with: {
         product: {
           with: {
-            color: true,
             brand: true,
           },
         },
@@ -41,7 +40,6 @@ export async function getProductByQrCode(qrCode: string) {
       with: {
         product: {
           with: {
-            color: true,
             brand: true,
           },
         },

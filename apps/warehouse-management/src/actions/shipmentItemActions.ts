@@ -2,10 +2,11 @@
 
 import { db } from '~/server/db';
 import { shipmentItems, products, shipments, storages, colors } from '~/server/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import type { ActionResult } from './types';
 import { logger } from '~/lib/logger';
 import { requireOrgContext } from '~/lib/authorization';
+import type { ProductAttributes } from '~/lib/schemas/productSchema';
 
 export interface ShipmentItemDetails {
   id: string;
@@ -21,16 +22,10 @@ export interface ShipmentItemDetails {
     model: string;
     description: string | null;
     category: string | null;
-    // New product attributes
-    colorId: string | null;
+    // Dynamic product attributes
+    attributes: ProductAttributes | null;
     colorName: string | null;
     colorHex: string | null;
-    weight: string | null;
-    size: string | null;
-    thickness: string | null;
-    material: string | null;
-    handleLength: string | null;
-    handleCircumference: string | null;
   };
   shipment: {
     id: string;
@@ -62,7 +57,7 @@ export async function getShipmentItemDetailsAction(itemId: string): Promise<Acti
       .innerJoin(products, eq(shipmentItems.productId, products.id))
       .innerJoin(shipments, eq(shipmentItems.shipmentId, shipments.id))
       .leftJoin(storages, eq(shipmentItems.storageId, storages.id))
-      .leftJoin(colors, eq(colors.id, products.colorId))
+      .leftJoin(colors, eq(colors.id, sql`(${products.attributes}->>'colorId')::text`))
       .where(and(
         eq(shipmentItems.id, itemId),
         eq(shipmentItems.organizationId, organizationId)
@@ -92,15 +87,9 @@ export async function getShipmentItemDetailsAction(itemId: string): Promise<Acti
         model: product.model,
         description: product.description,
         category: product.category,
-        colorId: product.colorId,
+        attributes: product.attributes as ProductAttributes | null,
         colorName: color?.name ?? null,
         colorHex: color?.hex ?? null,
-        weight: product.weight,
-        size: product.size,
-        thickness: product.thickness,
-        material: product.material,
-        handleLength: product.handleLength,
-        handleCircumference: product.handleCircumference,
       },
       shipment: {
         id: shipment.id,

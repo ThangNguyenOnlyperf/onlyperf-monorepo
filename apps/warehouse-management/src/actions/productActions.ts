@@ -36,18 +36,14 @@ export async function getProductsWithStockAction(
         brand: products.brand,
         brandId: products.brandId,
         model: products.model,
+        sku: products.sku,
         qrCode: products.qrCode,
         description: products.description,
         category: products.category,
-        colorId: products.colorId,
+        // Dynamic attributes as JSONB
+        attributes: products.attributes,
         colorName: colors.name,
         colorHex: colors.hex,
-        weight: products.weight,
-        size: products.size,
-        thickness: products.thickness,
-        material: products.material,
-        handleLength: products.handleLength,
-        handleCircumference: products.handleCircumference,
         // Product type fields for pack support
         productType: products.productType,
         isPackProduct: products.isPackProduct,
@@ -65,7 +61,7 @@ export async function getProductsWithStockAction(
         shopifyLastSyncError: sql<string | null>`max(${shopifyProducts.lastSyncError})`,
       })
       .from(products)
-      .leftJoin(colors, eq(colors.id, products.colorId))
+      .leftJoin(colors, eq(colors.id, sql`(${products.attributes}->>'colorId')::text`))
       .leftJoin(shipmentItems, eq(shipmentItems.productId, products.id))
       .leftJoin(shopifyProducts, eq(shopifyProducts.productId, products.id))
       .where(eq(products.organizationId, organizationId))
@@ -146,11 +142,12 @@ export async function createProductAction(data: ProductFormData): Promise<Action
     }
 
     // Look up color info for display in messages (must be in same org)
+    const colorId = validatedData.attributes.colorId;
     const [colorInfo] = await db
       .select({ name: colors.name, hex: colors.hex })
       .from(colors)
       .where(and(
-        eq(colors.id, validatedData.colorId),
+        eq(colors.id, colorId),
         eq(colors.organizationId, organizationId)
       ))
       .limit(1);
@@ -171,7 +168,7 @@ export async function createProductAction(data: ProductFormData): Promise<Action
           eq(products.organizationId, organizationId),
           eq(products.brandId, validatedData.brandId),
           eq(products.model, validatedData.model),
-          eq(products.colorId, validatedData.colorId)
+          sql`${products.attributes}->>'colorId' = ${colorId}`
         )
       )
       .limit(1);
@@ -187,7 +184,7 @@ export async function createProductAction(data: ProductFormData): Promise<Action
     const productId = `prd_${nanoid()}`;
     const productName = `${brandInfo.name} ${validatedData.model}`;
 
-    logger.info({ ...userContext, organizationId, productName, brand: brandInfo.name, model: validatedData.model, colorId: validatedData.colorId, colorName: colorInfo.name }, `User ${userContext.userName} creating product: ${productName}`);
+    logger.info({ ...userContext, organizationId, productName, brand: brandInfo.name, model: validatedData.model, colorId, colorName: colorInfo.name }, `User ${userContext.userName} creating product: ${productName}`);
 
     const [newProduct] = await db
       .insert(products)
@@ -198,15 +195,11 @@ export async function createProductAction(data: ProductFormData): Promise<Action
         brand: brandInfo.name,
         brandId: validatedData.brandId,
         model: validatedData.model,
+        sku: validatedData.sku ?? null,
         description: validatedData.description,
         category: validatedData.category,
-        colorId: validatedData.colorId,
-        weight: validatedData.weight,
-        size: validatedData.size,
-        thickness: validatedData.thickness,
-        material: validatedData.material,
-        handleLength: validatedData.handleLength,
-        handleCircumference: validatedData.handleCircumference,
+        // Dynamic attributes as JSONB
+        attributes: validatedData.attributes,
         // Product type fields for pack support
         productType: validatedData.productType ?? 'general',
         isPackProduct: validatedData.isPackProduct ?? false,
@@ -288,18 +281,14 @@ export async function getProductsForSelectionAction(): Promise<ActionResult<Prod
         brand: products.brand,
         brandId: products.brandId,
         model: products.model,
+        sku: products.sku,
         qrCode: products.qrCode,
         description: products.description,
         category: products.category,
-        colorId: products.colorId,
+        // Dynamic attributes as JSONB
+        attributes: products.attributes,
         colorName: colors.name,
         colorHex: colors.hex,
-        weight: products.weight,
-        size: products.size,
-        thickness: products.thickness,
-        material: products.material,
-        handleLength: products.handleLength,
-        handleCircumference: products.handleCircumference,
         // Product type fields for pack support
         productType: products.productType,
         isPackProduct: products.isPackProduct,
@@ -311,7 +300,7 @@ export async function getProductsForSelectionAction(): Promise<ActionResult<Prod
       })
       .from(products)
       .leftJoin(brands, eq(products.brandId, brands.id))
-      .leftJoin(colors, eq(colors.id, products.colorId))
+      .leftJoin(colors, eq(colors.id, sql`(${products.attributes}->>'colorId')::text`))
       .where(eq(products.organizationId, organizationId))
       .orderBy(asc(products.name));
 
@@ -344,18 +333,14 @@ export async function searchProductsAction(query: string): Promise<ActionResult<
         brand: products.brand,
         brandId: products.brandId,
         model: products.model,
+        sku: products.sku,
         qrCode: products.qrCode,
         description: products.description,
         category: products.category,
-        colorId: products.colorId,
+        // Dynamic attributes as JSONB
+        attributes: products.attributes,
         colorName: colors.name,
         colorHex: colors.hex,
-        weight: products.weight,
-        size: products.size,
-        thickness: products.thickness,
-        material: products.material,
-        handleLength: products.handleLength,
-        handleCircumference: products.handleCircumference,
         // Product type fields for pack support
         productType: products.productType,
         isPackProduct: products.isPackProduct,
@@ -367,14 +352,15 @@ export async function searchProductsAction(query: string): Promise<ActionResult<
       })
       .from(products)
       .leftJoin(brands, eq(products.brandId, brands.id))
-      .leftJoin(colors, eq(colors.id, products.colorId))
+      .leftJoin(colors, eq(colors.id, sql`(${products.attributes}->>'colorId')::text`))
       .where(
         and(
           eq(products.organizationId, organizationId),
           or(
             like(products.name, searchPattern),
             like(products.model, searchPattern),
-            like(products.brand, searchPattern)
+            like(products.brand, searchPattern),
+            like(products.sku, searchPattern)
           )
         )
       )
@@ -454,18 +440,14 @@ export async function syncProductWithShopifyAction(
         brand: products.brand,
         brandId: products.brandId,
         model: products.model,
+        sku: products.sku,
         qrCode: products.qrCode,
         description: products.description,
         category: products.category,
-        colorId: products.colorId,
+        // Dynamic attributes as JSONB
+        attributes: products.attributes,
         colorHex: colors.hex,
         colorName: colors.name,
-        weight: products.weight,
-        size: products.size,
-        thickness: products.thickness,
-        material: products.material,
-        handleLength: products.handleLength,
-        handleCircumference: products.handleCircumference,
         price: products.price,
         productType: products.productType,
         isPackProduct: products.isPackProduct,
@@ -475,7 +457,7 @@ export async function syncProductWithShopifyAction(
         updatedAt: products.updatedAt,
       })
       .from(products)
-      .leftJoin(colors, eq(colors.id, products.colorId))
+      .leftJoin(colors, eq(colors.id, sql`(${products.attributes}->>'colorId')::text`))
       .where(and(
         eq(products.id, productId),
         eq(products.organizationId, organizationId)

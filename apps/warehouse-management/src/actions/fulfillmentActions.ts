@@ -2,7 +2,7 @@
 
 import { db } from "~/server/db";
 import { orders, orderItems, shipmentItems, customers, products, colors } from "~/server/db/schema";
-import { eq, and, isNull, inArray } from "drizzle-orm";
+import { eq, and, isNull, inArray, sql } from "drizzle-orm";
 import type { ActionResult } from "./types";
 import { logger } from "~/lib/logger";
 import { requireOrgContext } from "~/lib/authorization";
@@ -166,7 +166,7 @@ export async function getPendingShopifyOrdersAction(): Promise<ActionResult<Pend
       })
       .from(orderItems)
       .leftJoin(products, eq(orderItems.productId, products.id))
-      .leftJoin(colors, eq(colors.id, products.colorId))
+      .leftJoin(colors, eq(colors.id, sql`(${products.attributes}->>'colorId')::text`))
       .where(inArray(orderItems.orderId, orderIds));
 
     // Group items by order ID
@@ -275,7 +275,7 @@ export async function getOrderFulfillmentDetailsAction(
       })
       .from(orderItems)
       .leftJoin(products, eq(orderItems.productId, products.id))
-      .leftJoin(colors, eq(colors.id, products.colorId))
+      .leftJoin(colors, eq(colors.id, sql`(${products.attributes}->>'colorId')::text`))
       .where(eq(orderItems.orderId, orderId));
 
     // Group by product to show required quantities

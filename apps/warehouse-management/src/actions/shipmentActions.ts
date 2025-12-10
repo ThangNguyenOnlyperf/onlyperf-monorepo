@@ -40,13 +40,8 @@ async function findOrCreatePackProduct(
         model: packModel,
         description: `${baseProduct.name} - Gói ${packSize} quả`,
         category: baseProduct.category,
-        colorId: baseProduct.colorId,
-        weight: baseProduct.weight,
-        size: baseProduct.size,
-        thickness: baseProduct.thickness,
-        material: baseProduct.material,
-        handleLength: baseProduct.handleLength,
-        handleCircumference: baseProduct.handleCircumference,
+        // Copy attributes from base product
+        attributes: baseProduct.attributes,
         productType: 'ball', // Pack products inherit base product's type
         isPackProduct: true,
         packSize: packSize,

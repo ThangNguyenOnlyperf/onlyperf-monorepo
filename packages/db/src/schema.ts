@@ -126,6 +126,17 @@ export const brands = pgTable("brands", {
   orgNameUnique: uniqueIndex("brands_org_name_unique").on(table.organizationId, table.name),
 }));
 
+// Product attributes type for JSONB
+export type ProductAttributes = {
+  colorId?: string;
+  weight?: string;
+  size?: string;
+  thickness?: string;
+  material?: string;
+  handleLength?: string;
+  handleCircumference?: string;
+};
+
 // Product management tables
 export const products = pgTable("products", {
   id: text("id").primaryKey(),
@@ -134,17 +145,12 @@ export const products = pgTable("products", {
   brand: text("brand").notNull(), // Keep for backward compatibility, will migrate data
   brandId: text("brand_id").references(() => brands.id),
   model: text("model").notNull(),
+  sku: text("sku"), // SKU for Shopify sync and inventory management
   qrCode: text("qr_code").unique(),
   description: text("description"),
   category: text("category"),
-  // New product attributes
-  colorId: text("color_id").references(() => colors.id).notNull(),
-  weight: text("weight"),
-  size: text("size"),
-  thickness: text("thickness"),
-  material: text("material"),
-  handleLength: text("handle_length"),
-  handleCircumference: text("handle_circumference"),
+  // Dynamic product attributes stored as JSONB
+  attributes: jsonb("attributes").$type<ProductAttributes>().default({}),
   price: integer("price").notNull().default(0), // Price in VND (stored as integer to avoid decimal issues)
   // Product type fields for pack support
   productType: text("product_type").notNull().default("general"), // 'general' | 'individual' | 'ball'
@@ -157,8 +163,8 @@ export const products = pgTable("products", {
   orgIdx: index("products_org_idx").on(table.organizationId),
   brandIdx: index("products_brand_idx").on(table.brand),
   brandIdIdx: index("products_brand_id_idx").on(table.brandId),
-  colorIdIdx: index("products_color_id_idx").on(table.colorId),
   modelIdx: index("products_model_idx").on(table.model),
+  skuIdx: index("products_sku_idx").on(table.sku),
   qrCodeIdx: index("products_qr_code_idx").on(table.qrCode),
   brandModelUnique: index("products_brand_model_unique").on(table.brandId, table.model),
   productTypeIdx: index("products_product_type_idx").on(table.productType),
@@ -466,7 +472,7 @@ export const deliveryResolutions = pgTable("delivery_resolutions", {
 // Ownership transfers - Audit trail for product ownership changes
 export const ownershipTransfers = pgTable("ownership_transfers", {
   id: text("id").primaryKey().$defaultFn(() => `ot_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`),
-  organizationId: text("organization_id").notNull().references(() => organization.id, { onDelete: "cascade" }),
+  organizationId: text("organization_id").references(() => organization.id, { onDelete: "cascade" }),
   shipmentItemId: text("shipment_item_id").notNull().references(() => shipmentItems.id, { onDelete: "cascade" }),
   fromOwnerId: text("from_owner_id").notNull(), // Shopify customer GID
   toOwnerId: text("to_owner_id").notNull(), // Shopify customer GID
@@ -490,7 +496,7 @@ export type CustomerScanLocation = {
 // Customer scans - Analytics for QR code scanning by customers
 export const customerScans = pgTable("customer_scans", {
   id: text("id").primaryKey().$defaultFn(() => `cs_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`),
-  organizationId: text("organization_id").notNull().references(() => organization.id, { onDelete: "cascade" }),
+  organizationId: text("organization_id").references(() => organization.id, { onDelete: "cascade" }),
   qrCode: text("qr_code").notNull(),
   shipmentItemId: text("shipment_item_id").references(() => shipmentItems.id, { onDelete: "cascade" }),
   customerId: text("customer_id"), // Null if not logged in
@@ -508,7 +514,7 @@ export const customerScans = pgTable("customer_scans", {
 // Warranty claims - Customer warranty claim submissions
 export const warrantyClaims = pgTable("warranty_claims", {
   id: text("id").primaryKey().$defaultFn(() => `wc_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`),
-  organizationId: text("organization_id").notNull().references(() => organization.id, { onDelete: "cascade" }),
+  organizationId: text("organization_id").references(() => organization.id, { onDelete: "cascade" }),
   shipmentItemId: text("shipment_item_id").notNull().references(() => shipmentItems.id, { onDelete: "cascade" }),
   customerId: text("customer_id").notNull(), // Shopify customer GID
   claimType: text("claim_type").notNull(), // defect | damage | repair | replacement
@@ -537,7 +543,7 @@ export const sepayTransactions = pgTable(
       .$defaultFn(
         () => `sepay_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
       ),
-    organizationId: text("organization_id").notNull().references(() => organization.id, { onDelete: "cascade" }),
+    organizationId: text("organization_id").references(() => organization.id, { onDelete: "cascade" }),
     sepayTransactionId: text("sepay_transaction_id").unique(),
     gateway: text("gateway").notNull(),
     transactionDate: timestamp("transaction_date", {
@@ -595,7 +601,7 @@ export const checkoutSessions = pgTable(
       .$defaultFn(
         () => `cs_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
       ),
-    organizationId: text("organization_id").notNull().references(() => organization.id, { onDelete: "cascade" }),
+    organizationId: text("organization_id").references(() => organization.id, { onDelete: "cascade" }),
     paymentCode: text("payment_code").notNull(),
     cartId: text("cart_id").notNull(),
     linesSnapshot: jsonb("lines_snapshot").notNull(),
@@ -849,10 +855,8 @@ export const productsRelations = relations(products, ({ many, one }) => ({
     fields: [products.brandId],
     references: [brands.id],
   }),
-  color: one(colors, {
-    fields: [products.colorId],
-    references: [colors.id],
-  }),
+  // Note: color relation removed - colorId is now in JSONB attributes
+  // Use manual JOIN with sql`attributes->>'colorId'` when needed
   // Self-reference: pack products link to their base product
   baseProduct: one(products, {
     fields: [products.baseProductId],
