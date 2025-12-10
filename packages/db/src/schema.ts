@@ -646,6 +646,122 @@ export const checkoutSessions = pgTable(
   }),
 );
 
+// =============================================================================
+// QR Pool & Bundle Assembly Tables
+// =============================================================================
+
+// QR Pool - Pre-printed stickers waiting to be applied
+export const qrPool = pgTable("qr_pool", {
+  id: text("id").primaryKey().$defaultFn(() => `qr_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`),
+  organizationId: text("organization_id").notNull().references(() => organization.id, { onDelete: "cascade" }),
+  qrCode: text("qr_code").unique().notNull(), // ABCD1234 format
+
+  status: text("status").notNull().default("available"), // available | used
+
+  // Traceability
+  batchId: text("batch_id"), // Links QRs generated together
+  generatedAt: timestamp("generated_at").notNull().defaultNow(),
+  usedAt: timestamp("used_at"), // When bound to inventory
+}, (table) => ({
+  orgIdx: index("qr_pool_org_idx").on(table.organizationId),
+  qrCodeIdx: uniqueIndex("qr_pool_qr_code_idx").on(table.qrCode),
+  statusIdx: index("qr_pool_status_idx").on(table.status),
+  batchIdx: index("qr_pool_batch_idx").on(table.batchId),
+}));
+
+// Inventory - Source of truth for all tracked items (replaces shipmentItems for balls)
+export const inventory = pgTable("inventory", {
+  id: text("id").primaryKey().$defaultFn(() => `inv_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`),
+  organizationId: text("organization_id").notNull().references(() => organization.id, { onDelete: "cascade" }),
+  qrCode: text("qr_code").unique().notNull(), // Same code as qrPool entry
+
+  // Product link (REQUIRED)
+  productId: text("product_id").notNull().references(() => products.id),
+
+  // Status lifecycle
+  status: text("status").notNull().default("in_stock"),
+  // in_stock | allocated | sold | shipped | returned
+
+  // Source tracking
+  sourceType: text("source_type").notNull(), // 'assembly' | 'inbound' | 'return'
+  bundleId: text("bundle_id").references((): AnyPgColumn => bundles.id), // If from assembly
+  shipmentId: text("shipment_id").references(() => shipments.id), // If from inbound
+
+  // Location
+  storageId: text("storage_id").references(() => storages.id),
+
+  // Sale tracking
+  orderId: text("order_id").references(() => orders.id),
+  soldAt: timestamp("sold_at"),
+  customerId: text("customer_id"),
+
+  // Customer portal
+  firstScannedByCustomerAt: timestamp("first_scanned_by_customer_at"),
+  customerScanCount: integer("customer_scan_count").notNull().default(0),
+
+  // Warranty
+  warrantyMonths: integer("warranty_months").notNull().default(12),
+  warrantyExpiresAt: timestamp("warranty_expires_at"),
+
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  createdBy: text("created_by").references(() => user.id),
+}, (table) => ({
+  orgIdx: index("inventory_org_idx").on(table.organizationId),
+  qrCodeIdx: uniqueIndex("inventory_qr_code_idx").on(table.qrCode),
+  productIdIdx: index("inventory_product_id_idx").on(table.productId),
+  statusIdx: index("inventory_status_idx").on(table.status),
+  bundleIdIdx: index("inventory_bundle_id_idx").on(table.bundleId),
+  shipmentIdIdx: index("inventory_shipment_id_idx").on(table.shipmentId),
+  storageIdIdx: index("inventory_storage_id_idx").on(table.storageId),
+  orderIdIdx: index("inventory_order_id_idx").on(table.orderId),
+  sourceTypeIdx: index("inventory_source_type_idx").on(table.sourceType),
+}));
+
+// Bundles - Wholesale groupings (e.g., 30× 3-ball + 6× 10-ball = 150 balls)
+export const bundles = pgTable("bundles", {
+  id: text("id").primaryKey().$defaultFn(() => `bnd_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`),
+  organizationId: text("organization_id").notNull().references(() => organization.id, { onDelete: "cascade" }),
+  qrCode: text("qr_code").unique().notNull(), // Bundle's own QR
+  name: text("name").notNull(),
+
+  // Status & Progress
+  status: text("status").notNull().default("pending"),
+  // pending | assembling | completed | sold
+  currentPhaseIndex: integer("current_phase_index").notNull().default(0),
+
+  // Assembly tracking
+  assemblyStartedAt: timestamp("assembly_started_at"),
+  assemblyCompletedAt: timestamp("assembly_completed_at"),
+  assembledBy: text("assembled_by").references(() => user.id),
+
+  createdBy: text("created_by").references(() => user.id),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+}, (table) => ({
+  orgIdx: index("bundles_org_idx").on(table.organizationId),
+  qrCodeIdx: uniqueIndex("bundles_qr_code_idx").on(table.qrCode),
+  statusIdx: index("bundles_status_idx").on(table.status),
+  createdAtIdx: index("bundles_created_at_idx").on(table.createdAt),
+}));
+
+// Bundle Items - Links bundles to products (NO JSON!)
+export const bundleItems = pgTable("bundle_items", {
+  id: text("id").primaryKey().$defaultFn(() => `bi_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`),
+  bundleId: text("bundle_id").notNull().references(() => bundles.id, { onDelete: "cascade" }),
+  productId: text("product_id").notNull().references(() => products.id),
+  // ↑ REAL FK to products! Product must exist before bundle creation.
+
+  // Assembly tracking
+  expectedCount: integer("expected_count").notNull(), // e.g., 30
+  scannedCount: integer("scanned_count").notNull().default(0),
+
+  // Phase ordering (0 = first phase, 1 = second, etc.)
+  phaseOrder: integer("phase_order").notNull().default(0),
+}, (table) => ({
+  bundleIdIdx: index("bundle_items_bundle_id_idx").on(table.bundleId),
+  productIdIdx: index("bundle_items_product_id_idx").on(table.productId),
+  phaseOrderIdx: index("bundle_items_phase_order_idx").on(table.phaseOrder),
+}));
+
 // ============================================================================
 // RELATIONS - Drizzle ORM relational query API
 // ============================================================================
@@ -723,6 +839,8 @@ export const shipmentItemsRelations = relations(shipmentItems, ({ one, many }) =
 export const productsRelations = relations(products, ({ many, one }) => ({
   shipmentItems: many(shipmentItems),
   orderItems: many(orderItems),
+  inventoryItems: many(inventory),
+  bundleItems: many(bundleItems),
   shopifyProduct: one(shopifyProducts, {
     fields: [products.id],
     references: [shopifyProducts.productId],
@@ -891,5 +1009,75 @@ export const warrantyClaimsRelations = relations(warrantyClaims, ({ one }) => ({
   shipmentItem: one(shipmentItems, {
     fields: [warrantyClaims.shipmentItemId],
     references: [shipmentItems.id],
+  }),
+}));
+
+// =============================================================================
+// QR Pool & Bundle Assembly Relations
+// =============================================================================
+
+export const qrPoolRelations = relations(qrPool, ({ one }) => ({
+  organization: one(organization, {
+    fields: [qrPool.organizationId],
+    references: [organization.id],
+  }),
+}));
+
+export const inventoryRelations = relations(inventory, ({ one }) => ({
+  organization: one(organization, {
+    fields: [inventory.organizationId],
+    references: [organization.id],
+  }),
+  product: one(products, {
+    fields: [inventory.productId],
+    references: [products.id],
+  }),
+  bundle: one(bundles, {
+    fields: [inventory.bundleId],
+    references: [bundles.id],
+  }),
+  shipment: one(shipments, {
+    fields: [inventory.shipmentId],
+    references: [shipments.id],
+  }),
+  storage: one(storages, {
+    fields: [inventory.storageId],
+    references: [storages.id],
+  }),
+  order: one(orders, {
+    fields: [inventory.orderId],
+    references: [orders.id],
+  }),
+  createdByUser: one(user, {
+    fields: [inventory.createdBy],
+    references: [user.id],
+  }),
+}));
+
+export const bundlesRelations = relations(bundles, ({ one, many }) => ({
+  organization: one(organization, {
+    fields: [bundles.organizationId],
+    references: [organization.id],
+  }),
+  items: many(bundleItems),
+  inventoryItems: many(inventory),
+  assembledByUser: one(user, {
+    fields: [bundles.assembledBy],
+    references: [user.id],
+  }),
+  createdByUser: one(user, {
+    fields: [bundles.createdBy],
+    references: [user.id],
+  }),
+}));
+
+export const bundleItemsRelations = relations(bundleItems, ({ one }) => ({
+  bundle: one(bundles, {
+    fields: [bundleItems.bundleId],
+    references: [bundles.id],
+  }),
+  product: one(products, {
+    fields: [bundleItems.productId],
+    references: [products.id],
   }),
 }));

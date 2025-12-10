@@ -22,6 +22,7 @@ import {
   Shield,
   ScanLine,
   QrCode,
+  Layers,
 } from 'lucide-react';
 import { Button } from '~/components/ui/button';
 import { useState, useEffect } from 'react';
@@ -112,6 +113,21 @@ const getNavigationGroups = (pendingCount: number): NavigationGroup[] => [
         name: 'Khách hàng',
         href: '/customers',
         icon: Users,
+      },
+      {
+        name: 'QR Pool',
+        href: '/qr-pool',
+        icon: QrCode,
+      },
+      {
+        name: 'Tồn kho',
+        href: '/inventory',
+        icon: PackageCheck,
+      },
+      {
+        name: 'Lô hàng sỉ',
+        href: '/bundles',
+        icon: Layers,
       },
     ],
   },

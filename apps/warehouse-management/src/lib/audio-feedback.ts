@@ -109,3 +109,21 @@ export async function playTone(frequency: number, duration = 200, volume = 0.3) 
 // Predefined tones
 export const playSuccessTone = () => playTone(800, 150, 0.3); // High pleasant tone
 export const playErrorTone = () => playTone(300, 200, 0.2); // Low error tone
+
+// Phase-specific tones for assembly
+export const playBluePhaseTone = () => playTone(659, 100, 0.25); // E5 - "beep" for blue phase (3-ball)
+export const playGreenPhaseTone = () => playTone(523, 150, 0.25); // C5 - "boop" for green phase (10-ball)
+export const playPurplePhaseTone = () => playTone(587, 120, 0.25); // D5 - for purple phase
+
+// Phase transition tone (two ascending tones)
+export const playTransitionTone = async () => {
+  await playTone(440, 100, 0.2); // A4
+  setTimeout(() => playTone(880, 200, 0.3), 120); // A5 (octave higher)
+};
+
+// Completion fanfare (three ascending tones)
+export const playCompletionFanfare = async () => {
+  playTone(523, 100, 0.3); // C5
+  setTimeout(() => playTone(659, 100, 0.3), 120); // E5
+  setTimeout(() => playTone(784, 200, 0.4), 240); // G5
+};
