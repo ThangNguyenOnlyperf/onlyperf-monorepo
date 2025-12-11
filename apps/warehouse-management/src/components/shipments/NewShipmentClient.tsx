@@ -74,7 +74,7 @@ export default function NewShipmentClient({
       </div>
 
       {/* Content */}
-      <div className="container mx-auto py-8">
+      <div className="container mx-auto py-8 px-4">
         <NewShipmentForm 
           onSubmit={handleSubmit} 
           products={products}

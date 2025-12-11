@@ -107,7 +107,7 @@ export default function ShipmentScanUI({ shipment, storages }: ShipmentScanUIPro
 
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="space-y-6">
       {/* Back Link */}
       <Link 
         href="/shipments" 

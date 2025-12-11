@@ -63,12 +63,6 @@ export default function BundleDetailClientUI({ bundle }: BundleDetailClientUIPro
 
   return (
     <div className="space-y-6">
-      {/* Back Button */}
-      <Button variant="ghost" onClick={() => router.back()}>
-        <ArrowLeft className="h-4 w-4 mr-2" />
-        Quay lại
-      </Button>
-
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between gap-4">
         <div>
