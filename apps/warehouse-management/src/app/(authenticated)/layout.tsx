@@ -1,19 +1,23 @@
 import { redirect } from 'next/navigation';
-import { auth } from '~/lib/auth';
-import { headers } from 'next/headers';
+import { getOrgContext, PERMISSIONS } from '~/lib/authorization';
+import { PermissionsProvider } from '~/lib/permissions-context';
 
 export default async function AuthenticatedLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+  const context = await getOrgContext();
 
-  if (!session) {
+  if (!context) {
     redirect('/signin');
   }
 
-  return <>{children}</>;
+  const permissions = PERMISSIONS[context.userRole] || [];
+
+  return (
+    <PermissionsProvider userRole={context.userRole} permissions={permissions}>
+      {children}
+    </PermissionsProvider>
+  );
 }

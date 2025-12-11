@@ -88,10 +88,53 @@ Since AI agents are not installed, here are the optimal approaches for different
 #### Authentication & Security
 - **Focus Areas**: Better-auth integration, role-based access
 - **Best Practices**:
-  - Implement proper RBAC (Admin, Warehouse Staff, Accountant)
+  - Implement proper RBAC (Admin, Supervisor, Staff)
   - Secure all server actions with authentication checks
   - Validate all inputs to prevent injection attacks
   - Implement audit logging for sensitive operations
+
+#### Role-Based Permission System
+- **Roles & Permissions** (defined in `~/lib/authorization.ts`):
+  - `admin` (org owner/admin): Full access (`*`)
+  - `supervisor`: User permissions + create/update/delete operations
+  - `user` (staff/member): View + scan only (no create/update)
+- **Org Role → App Role Mapping**:
+  ```typescript
+  owner → admin, admin → admin, supervisor → supervisor, member → user
+  ```
+- **Type-safe Permission Constants** (use `P` object):
+  ```typescript
+  import { P } from '~/lib/authorization';
+  // P.CREATE_PRODUCTS, P.VIEW_SHIPMENTS, P.CREATE_QR_POOL, etc.
+  ```
+- **Server-side Permission Check**:
+  ```typescript
+  // In server actions, use requireOrgContext with permissions
+  const { organizationId } = await requireOrgContext({
+    permissions: [P.CREATE_QR_POOL]  // Will throw if user lacks permission
+  });
+  ```
+- **Client-side Permission UI** (use `~/lib/permissions-context.tsx`):
+  ```typescript
+  // The (authenticated) layout wraps all pages with PermissionsProvider
+  // In any client component, use:
+  import { Can, usePermissions } from '~/lib/permissions-context';
+  import { P } from '~/lib/authorization';
+
+  // Option 1: Declarative with <Can> component
+  <Can permission={P.CREATE_PRODUCTS}>
+    <Button>Tạo sản phẩm</Button>
+  </Can>
+
+  // Option 2: Hook for complex logic
+  const { can, userRole } = usePermissions();
+  if (can(P.CREATE_PRODUCTS)) { ... }
+  ```
+- **Adding New Permissions**:
+  1. Add permission constant to `P` object in `~/lib/authorization.ts`
+  2. Add to appropriate role arrays (`USER_PERMISSIONS` or `SUPERVISOR_EXTRA_PERMISSIONS`)
+  3. Add permission check to server action: `requireOrgContext({ permissions: [P.NEW_PERM] })`
+  4. Use `<Can permission={P.NEW_PERM}>` in UI to conditionally render
 
 ### How to Use Your Team
 

@@ -23,6 +23,8 @@ import {
   PaginationEllipsis,
 } from '~/components/ui/pagination';
 import { Package, BoxIcon, CheckCircle, ShoppingCart } from 'lucide-react';
+import { Can } from '~/lib/permissions-context';
+import { P } from '~/lib/permissions';
 interface ProductsClientUIProps {
   paginatedProducts: PaginatedResult<Product>;
   metrics: ProductMetrics;
@@ -127,13 +129,15 @@ export default function ProductsClientUI({ paginatedProducts, metrics, brands, c
       <DataTableCard
         title="Danh sách sản phẩm"
         action={
-          <Button
-            onClick={() => setIsCreateModalOpen(true)}
-            className="btn-primary"
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Thêm sản phẩm
-          </Button>
+          <Can permission={P.CREATE_PRODUCTS}>
+            <Button
+              onClick={() => setIsCreateModalOpen(true)}
+              className="btn-primary"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Thêm sản phẩm
+            </Button>
+          </Can>
         }
       >
         <ProductsTable products={products} />

@@ -28,6 +28,8 @@ import {
   TrendingUp
 } from 'lucide-react';
 import type { Storage } from '~/actions/storageActions';
+import { usePermissions } from '~/lib/permissions-context';
+import { P } from '~/lib/permissions';
 
 interface StoragesTableProps {
   storages: Storage[];
@@ -40,6 +42,8 @@ export default function StoragesTable({
   onEdit,
   onDelete,
 }: StoragesTableProps) {
+  const { can } = usePermissions();
+
   const getUtilizationColor = (percentage: number) => {
     if (percentage >= 90) return 'text-red-600';
     if (percentage >= 70) return 'text-yellow-600';
@@ -124,33 +128,41 @@ export default function StoragesTable({
                   </Badge>
                 </TableCell>
                 <TableCell className="text-right">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button 
-                        variant="ghost" 
-                        className="h-8 w-8 p-0"
-                      >
-                        <span className="sr-only">Mở menu</span>
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>Thao tác</DropdownMenuLabel>
-                      <DropdownMenuItem onClick={() => onEdit(storage)}>
-                        <Edit className="mr-2 h-4 w-4" />
-                        Chỉnh sửa
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem 
-                        onClick={() => onDelete(storage)}
-                        className="text-red-600"
-                        disabled={storage.usedCapacity > 0}
-                      >
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Xóa kho
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  {(can(P.UPDATE_STORAGES) || can(P.DELETE_STORAGES)) && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          className="h-8 w-8 p-0"
+                        >
+                          <span className="sr-only">Mở menu</span>
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>Thao tác</DropdownMenuLabel>
+                        {can(P.UPDATE_STORAGES) && (
+                          <DropdownMenuItem onClick={() => onEdit(storage)}>
+                            <Edit className="mr-2 h-4 w-4" />
+                            Chỉnh sửa
+                          </DropdownMenuItem>
+                        )}
+                        {can(P.UPDATE_STORAGES) && can(P.DELETE_STORAGES) && (
+                          <DropdownMenuSeparator />
+                        )}
+                        {can(P.DELETE_STORAGES) && (
+                          <DropdownMenuItem
+                            onClick={() => onDelete(storage)}
+                            className="text-red-600"
+                            disabled={storage.usedCapacity > 0}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Xóa kho
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
                 </TableCell>
               </TableRow>
             );

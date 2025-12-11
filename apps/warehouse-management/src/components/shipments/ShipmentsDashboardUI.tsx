@@ -18,6 +18,8 @@ import {
 } from '~/components/ui/pagination';
 import { Button } from '~/components/ui/button';
 import { Plus, RefreshCw } from 'lucide-react';
+import { Can } from '~/lib/permissions-context';
+import { P } from '~/lib/permissions';
 import { toast } from 'sonner';
 
 interface ShipmentsDashboardUIProps {
@@ -107,14 +109,16 @@ export default function ShipmentsDashboardUI({
               Tải lại
             </Button>
 
-            <Button
-              onClick={() => router.push('/shipments/new')}
-              size="sm"
-              className="btn-primary"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Tạo phiếu nhập
-            </Button>
+            <Can permission={P.CREATE_SHIPMENTS}>
+              <Button
+                onClick={() => router.push('/shipments/new')}
+                size="sm"
+                className="btn-primary"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Tạo phiếu nhập
+              </Button>
+            </Can>
           </div>
         }
       >

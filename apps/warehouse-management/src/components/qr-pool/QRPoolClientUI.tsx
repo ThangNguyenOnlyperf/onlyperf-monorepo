@@ -35,6 +35,8 @@ import { EmptyState } from '~/components/ui/EmptyState';
 import { generateQRPoolBatchAction, getQRPoolStatsAction, getQRBatchesAction } from '~/actions/qrPoolActions';
 import type { QRPoolStats, QRBatch } from '~/actions/qrPoolActions';
 import { formatDate } from '~/lib/utils/formatDate';
+import { Can } from '~/lib/permissions-context';
+import { P } from '~/lib/permissions';
 
 interface QRPoolClientUIProps {
   initialStats: QRPoolStats;
@@ -222,59 +224,61 @@ export default function QRPoolClientUI({ initialStats, initialBatches }: QRPoolC
         />
       </div>
 
-      {/* Generate Button */}
-      <div className="flex justify-end">
-        <Dialog open={isGenerateOpen} onOpenChange={setIsGenerateOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-gradient-to-r from-primary to-primary/80">
-              <Plus className="h-4 w-4 mr-2" />
-              Tạo mã QR mới
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Tạo mã QR mới</DialogTitle>
-              <DialogDescription>
-                Tạo một lô mã QR mới để sử dụng cho việc lắp ráp sản phẩm.
-                Mỗi mã QR sẽ có định dạng ABCD1234.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="py-4">
-              <label className="text-sm font-medium">Số lượng</label>
-              <Input
-                type="number"
-                min={1}
-                max={10000}
-                value={quantity}
-                onChange={(e) => setQuantity(e.target.value)}
-                placeholder="100"
-                className="mt-1"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Tối đa 10,000 mã mỗi lần tạo
-              </p>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsGenerateOpen(false)}>
-                Hủy
+      {/* Generate Button - only shown if user has permission */}
+      <Can permission={P.CREATE_QR_POOL}>
+        <div className="flex justify-end">
+          <Dialog open={isGenerateOpen} onOpenChange={setIsGenerateOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-gradient-to-r from-primary to-primary/80">
+                <Plus className="h-4 w-4 mr-2" />
+                Tạo mã QR mới
               </Button>
-              <Button onClick={handleGenerate} disabled={isPending}>
-                {isPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Đang tạo...
-                  </>
-                ) : (
-                  <>
-                    <QrCode className="h-4 w-4 mr-2" />
-                    Tạo {parseInt(quantity) || 0} mã
-                  </>
-                )}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Tạo mã QR mới</DialogTitle>
+                <DialogDescription>
+                  Tạo một lô mã QR mới để sử dụng cho việc lắp ráp sản phẩm.
+                  Mỗi mã QR sẽ có định dạng ABCD1234.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-4">
+                <label className="text-sm font-medium">Số lượng</label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={10000}
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value)}
+                  placeholder="100"
+                  className="mt-1"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Tối đa 10,000 mã mỗi lần tạo
+                </p>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsGenerateOpen(false)}>
+                  Hủy
+                </Button>
+                <Button onClick={handleGenerate} disabled={isPending}>
+                  {isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Đang tạo...
+                    </>
+                  ) : (
+                    <>
+                      <QrCode className="h-4 w-4 mr-2" />
+                      Tạo {parseInt(quantity) || 0} mã
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </Can>
 
       {/* Batches Table */}
       <Card>

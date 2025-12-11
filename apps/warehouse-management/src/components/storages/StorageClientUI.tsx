@@ -21,6 +21,8 @@ import {
   PaginationEllipsis,
 } from '~/components/ui/pagination';
 import { Plus, Package, Home, BarChart3, TrendingUp } from 'lucide-react';
+import { Can } from '~/lib/permissions-context';
+import { P } from '~/lib/permissions';
 import { toast } from 'sonner';
 import StorageForm from './StorageForm';
 import StoragesTable from './StoragesTable';
@@ -193,26 +195,28 @@ export default function StorageClientUI({
           </p>
         </div>
         
-        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-          <DialogTrigger asChild>
-            <Button className="btn-primary">
-              <Plus className="mr-2 h-4 w-4" />
-              Tạo kho mới
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Tạo kho mới</DialogTitle>
-              <DialogDescription>
-                Nhập thông tin để tạo kho chứa hàng mới
-              </DialogDescription>
-            </DialogHeader>
-            <StorageForm 
-              onSubmit={handleCreate}
-              isPending={isPending}
-            />
-          </DialogContent>
-        </Dialog>
+        <Can permission={P.CREATE_STORAGES}>
+          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+            <DialogTrigger asChild>
+              <Button className="btn-primary">
+                <Plus className="mr-2 h-4 w-4" />
+                Tạo kho mới
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Tạo kho mới</DialogTitle>
+                <DialogDescription>
+                  Nhập thông tin để tạo kho chứa hàng mới
+                </DialogDescription>
+              </DialogHeader>
+              <StorageForm
+                onSubmit={handleCreate}
+                isPending={isPending}
+              />
+            </DialogContent>
+          </Dialog>
+        </Can>
       </div>
 
       {/* Storage Table */}

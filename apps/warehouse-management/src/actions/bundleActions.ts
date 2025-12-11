@@ -52,7 +52,9 @@ export async function createBundleAction(data: {
   items: BundleItemInput[];
 }): Promise<ActionResult<Bundle>> {
   try {
-    const { organizationId, userId } = await requireOrgContext();
+    const { organizationId, userId } = await requireOrgContext({
+      permissions: ['create:bundles']
+    });
 
     if (!data.name.trim()) {
       return {
@@ -380,7 +382,9 @@ export async function deleteBundleAction(
   bundleId: string
 ): Promise<ActionResult<void>> {
   try {
-    const { organizationId } = await requireOrgContext();
+    const { organizationId } = await requireOrgContext({
+      permissions: ['delete:bundles']
+    });
 
     // Check bundle exists and is pending
     const [bundle] = await db

@@ -29,6 +29,8 @@ import {
   PaginationPrevious,
 } from '~/components/ui/pagination';
 import { Package, Plus, Eye, Trash2, QrCode } from 'lucide-react';
+import { Can } from '~/lib/permissions-context';
+import { P } from '~/lib/permissions';
 import { toast } from 'sonner';
 import { Progress } from '~/components/ui/progress';
 import { EmptyState } from '~/components/ui/EmptyState';
@@ -128,12 +130,14 @@ export default function BundleListClientUI({ initialBundles }: BundleListClientU
           </SelectContent>
         </Select>
 
-        <Link href="/bundles/new">
-          <Button className="bg-gradient-to-r from-primary to-primary/80">
-            <Plus className="h-4 w-4 mr-2" />
-            Tạo lô hàng mới
-          </Button>
-        </Link>
+        <Can permission={P.CREATE_BUNDLES}>
+          <Link href="/bundles/new">
+            <Button className="bg-gradient-to-r from-primary to-primary/80">
+              <Plus className="h-4 w-4 mr-2" />
+              Tạo lô hàng mới
+            </Button>
+          </Link>
+        </Can>
       </div>
 
       {/* Bundles Table */}
@@ -210,16 +214,18 @@ export default function BundleListClientUI({ initialBundles }: BundleListClientU
                                 <Eye className="h-4 w-4" />
                               </Button>
                             </Link>
-                            {bundle.status === 'pending' && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setDeleteTarget(bundle)}
-                                className="text-destructive hover:text-destructive"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            )}
+                            <Can permission={P.DELETE_BUNDLES}>
+                              {bundle.status === 'pending' && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setDeleteTarget(bundle)}
+                                  className="text-destructive hover:text-destructive"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </Can>
                           </div>
                         </TableCell>
                       </TableRow>

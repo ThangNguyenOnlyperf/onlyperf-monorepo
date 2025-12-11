@@ -3,86 +3,18 @@ import { auth } from "./auth";
 import { db } from "~/server/db";
 import { member } from "~/server/db/schema";
 import { eq, and } from "drizzle-orm";
+import {
+  P,
+  PERMISSIONS,
+  hasPermission,
+  hasAnyPermission,
+  type Role,
+  type Permission,
+} from "./permissions";
 
-/**
- * Role permissions matrix
- * Defines what each role can do in the system
- */
-export const PERMISSIONS = {
-  admin: [
-    // Full system access
-    "*",
-  ],
-  supervisor: [
-    // Supervisor: view + scan + create/update
-    "view:products",
-    "create:products",
-    "update:products",
-    "scan:qr",
-    "view:shipments",
-    "create:shipments",
-    "update:shipments",
-    "view:orders",
-    "create:orders",
-    "update:orders",
-    "view:customers",
-    "create:customers",
-    "update:customers",
-    "view:storages",
-    "view:inventory",
-    "create:outbound",
-    "view:outbound",
-  ],
-  user: [
-    // Staff: view + scan only (no create/update)
-    "view:products",
-    "scan:qr",
-    "view:shipments",
-    "view:orders",
-    "view:customers",
-    "view:storages",
-    "view:inventory",
-    "view:outbound",
-  ],
-  accountant: [
-    // Financial and reporting permissions
-    "view:reports",
-    "view:orders",
-    "view:payments",
-    "view:customers",
-    "view:shipments",
-    "view:products",
-    "view:inventory",
-  ],
-} as const;
-
-export type Role = keyof typeof PERMISSIONS;
-export type Permission = (typeof PERMISSIONS)[Role][number];
-
-/**
- * Check if a role has a specific permission
- */
-export function hasPermission(role: Role, permission: string): boolean {
-  const rolePermissions = PERMISSIONS[role] as readonly string[];
-
-  // Admin has all permissions
-  if (rolePermissions.includes("*")) {
-    return true;
-  }
-
-  // Check for exact permission match
-  return rolePermissions.includes(permission);
-}
-
-/**
- * Check if a role has any of the specified permissions
- */
-export function hasAnyPermission(
-  role: Role,
-  permissions: string[]
-): boolean {
-  return permissions.some((permission) => hasPermission(role, permission));
-}
+// Re-export shared types and constants for backward compatibility
+export { P, PERMISSIONS, hasPermission, hasAnyPermission };
+export type { Role, Permission };
 
 /**
  * Require authentication and optionally check for specific roles or permissions

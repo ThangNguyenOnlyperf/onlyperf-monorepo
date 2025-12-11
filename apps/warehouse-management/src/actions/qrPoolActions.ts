@@ -33,7 +33,9 @@ export async function generateQRPoolBatchAction(
   quantity: number
 ): Promise<ActionResult<{ batchId: string; count: number }>> {
   try {
-    const { organizationId, userName } = await requireOrgContext();
+    const { organizationId, userName } = await requireOrgContext({
+      permissions: ['create:qr-pool']
+    });
 
     if (quantity < 1 || quantity > 10000) {
       return {
