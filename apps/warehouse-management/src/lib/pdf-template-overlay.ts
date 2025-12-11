@@ -1,3 +1,4 @@
+import "server-only";
 import { PDFDocument, PDFPage, rgb } from "pdf-lib";
 import QRCode from "qrcode";
 import {

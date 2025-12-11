@@ -2,8 +2,9 @@ import {
   generateTemplatePDFWithQRCodes,
   type QRCodeItem,
 } from "./pdf-template-overlay";
+import { DEFAULT_BATCH_SIZE } from "./qr-pool-constants";
 
-const DEFAULT_BATCH_SIZE = 100;
+export { DEFAULT_BATCH_SIZE };
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://onlyperf.com";
 
 /**

@@ -136,13 +136,7 @@ export default function SignInPage() {
 
               <div className="text-center">
                 <p className="text-sm text-gray-600">
-                  Chưa có tài khoản?{" "}
-                  <Link 
-                    href="/signup" 
-                    className="font-medium text-blue-600 hover:text-blue-500"
-                  >
-                    Đăng ký
-                  </Link>
+                  Chưa có tài khoản? Xin vui lòng liên hệ quản lí.
                 </p>
               </div>
             </CardContent>

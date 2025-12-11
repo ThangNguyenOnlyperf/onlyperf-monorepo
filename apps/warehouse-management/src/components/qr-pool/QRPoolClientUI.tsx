@@ -37,13 +37,12 @@ import type { QRPoolStats, QRBatch } from '~/actions/qrPoolActions';
 import { formatDate } from '~/lib/utils/formatDate';
 import { Can } from '~/lib/permissions-context';
 import { P } from '~/lib/permissions';
+import { DEFAULT_BATCH_SIZE } from '~/lib/qr-pool-constants';
 
 interface QRPoolClientUIProps {
   initialStats: QRPoolStats;
   initialBatches: QRBatch[];
 }
-
-const PDF_BATCH_SIZE = 100;
 
 interface PDFFileMeta {
   fileNumber: number;
@@ -108,14 +107,14 @@ export default function QRPoolClientUI({ initialStats, initialBatches }: QRPoolC
   };
 
   const getPDFFiles = (count: number, batchId: string, generatedAt: Date | string): PDFFileMeta[] => {
-    const totalFiles = Math.ceil(count / PDF_BATCH_SIZE);
+    const totalFiles = Math.ceil(count / DEFAULT_BATCH_SIZE);
     const files: PDFFileMeta[] = [];
     const shortBatchId = batchId.length > 12 ? batchId.slice(-12) : batchId;
     const dateStr = formatDateForFilename(generatedAt);
 
     for (let i = 0; i < totalFiles; i++) {
-      const startIndex = i * PDF_BATCH_SIZE;
-      const endIndex = Math.min(startIndex + PDF_BATCH_SIZE, count);
+      const startIndex = i * DEFAULT_BATCH_SIZE;
+      const endIndex = Math.min(startIndex + DEFAULT_BATCH_SIZE, count);
       const fileQrCount = endIndex - startIndex;
 
       files.push({
