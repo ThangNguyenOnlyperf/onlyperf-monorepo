@@ -1,3 +1,5 @@
+import type { inventory } from '~/server/db/schema';
+
 export interface ActionResult<T = unknown> {
   success: boolean;
   message?: string;
@@ -89,3 +91,35 @@ export type BundleStatus = 'pending' | 'assembling' | 'completed' | 'sold';
 export type InventoryStatus = 'in_stock' | 'allocated' | 'sold' | 'shipped' | 'returned';
 export type QRPoolStatus = 'available' | 'used';
 export type InventorySourceType = 'assembly' | 'inbound' | 'return';
+
+// ============================================
+// Inventory Types
+// ============================================
+
+export type InventoryItem = typeof inventory.$inferSelect;
+
+export interface InventoryWithRelations extends InventoryItem {
+  product: ProductRelation | null;
+  bundle: BundleRelation | null;
+  storage: StorageRelation | null;
+  order: OrderRelation | null;
+  createdByUser: UserRelation | null;
+}
+
+export interface InventoryFilters {
+  status?: InventoryStatus;
+  sourceType?: InventorySourceType;
+  productId?: string;
+  bundleId?: string;
+  storageId?: string;
+  search?: string;
+}
+
+export interface InventoryStats {
+  inStock: number;
+  allocated: number;
+  sold: number;
+  shipped: number;
+  returned: number;
+  total: number;
+}

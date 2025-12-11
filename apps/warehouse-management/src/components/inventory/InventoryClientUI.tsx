@@ -50,13 +50,13 @@ import {
 import { toast } from 'sonner';
 import { StatCard } from '~/components/ui/StatCard';
 import { EmptyState } from '~/components/ui/EmptyState';
-import {
-  getInventoryAction,
-  type InventoryStats,
-  type InventoryWithRelations,
-  type InventoryFilters,
-} from '~/actions/inventoryActions';
-import type { InventoryStatus } from '~/actions/types';
+import { getInventoryAction } from '~/actions/inventoryActions';
+import type {
+  InventoryStatus,
+  InventoryStats,
+  InventoryWithRelations,
+  InventoryFilters,
+} from '~/actions/types';
 import type { PaginatedResult } from '~/lib/queries/paginateQuery';
 import { formatDate } from '~/lib/utils/formatDate';
 import { inventoryStatusConfig, sourceTypeLabels } from '~/lib/constants/statusConfig';

@@ -7,45 +7,14 @@ import type {
   ActionResult,
   InventoryStatus,
   InventorySourceType,
-  ProductRelation,
-  BundleRelation,
-  StorageRelation,
-  OrderRelation,
-  UserRelation,
+  InventoryItem,
+  InventoryWithRelations,
+  InventoryFilters,
+  InventoryStats,
 } from './types';
 import type { PaginationParams, PaginatedResult } from '~/lib/queries/paginateQuery';
 import { requireOrgContext } from '~/lib/authorization';
 import { getDbErrorMessage } from '~/lib/error-handling';
-
-// Types for Inventory
-export type InventoryItem = typeof inventory.$inferSelect;
-export type { InventoryStatus, InventorySourceType } from './types';
-
-export interface InventoryWithRelations extends InventoryItem {
-  product: ProductRelation | null;
-  bundle: BundleRelation | null;
-  storage: StorageRelation | null;
-  order: OrderRelation | null;
-  createdByUser: UserRelation | null;
-}
-
-export interface InventoryFilters {
-  status?: InventoryStatus;
-  sourceType?: InventorySourceType;
-  productId?: string;
-  bundleId?: string;
-  storageId?: string;
-  search?: string;
-}
-
-export interface InventoryStats {
-  inStock: number;
-  allocated: number;
-  sold: number;
-  shipped: number;
-  returned: number;
-  total: number;
-}
 
 /**
  * Get inventory statistics
