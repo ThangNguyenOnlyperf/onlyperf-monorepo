@@ -52,7 +52,7 @@ export default function CircularProgressBadge({
             cx={center}
             cy={center}
             r={radius}
-            stroke="#e2e8f0"
+            stroke="hsl(var(--border))"
             strokeWidth={strokeWidth}
             fill="none"
           />
@@ -73,10 +73,10 @@ export default function CircularProgressBadge({
 
         {/* Count in center */}
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-4xl font-bold text-slate-900 tabular-nums">
+          <span className="text-4xl font-bold text-foreground tabular-nums">
             {current}
           </span>
-          <span className="text-sm text-slate-500 font-medium">
+          <span className="text-sm text-muted-foreground font-medium">
             / {total}
           </span>
         </div>

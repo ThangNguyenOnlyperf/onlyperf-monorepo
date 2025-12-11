@@ -130,14 +130,13 @@ export default function AssemblyClientUI({ initialSession }: AssemblyClientUIPro
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="min-h-screen bg-muted/30 flex flex-col">
       {/* Header - Minimal, clean */}
-      <header className="sticky top-0 z-40 bg-white border-b px-4 py-3">
+      <header className="sticky top-0 z-40 bg-background border-b border-border px-4 py-3">
         <div className="flex items-center justify-between">
           <Button
             variant="ghost"
             onClick={() => router.push(`/bundles/${bundle.id}`)}
-            className="text-slate-600 hover:text-slate-900"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
             Quay lại
@@ -179,7 +178,7 @@ export default function AssemblyClientUI({ initialSession }: AssemblyClientUIPro
       </main>
 
       {/* Sticky Scanner Input - Bottom, respects sidebar */}
-      <div className="sticky bottom-0 z-40 p-4 bg-white border-t shadow-lg">
+      <div className="sticky bottom-0 z-40 p-4 bg-background border-t border-border card-shadow">
         <div className="max-w-xl mx-auto">
           <div className="flex gap-2">
             <Input
@@ -195,7 +194,7 @@ export default function AssemblyClientUI({ initialSession }: AssemblyClientUIPro
             <Button
               onClick={() => handleScan(scanInput)}
               disabled={isPending || !scanInput.trim()}
-              className="h-12 px-6"
+              className="h-12 px-6 btn-primary"
             >
               {isPending ? (
                 <Loader2 className="h-5 w-5 animate-spin" />

@@ -17,8 +17,8 @@ interface ProductHeroCardProps {
 export default function ProductHeroCard({ item }: ProductHeroCardProps) {
   if (!item) {
     return (
-      <div className="bg-white rounded-2xl shadow-lg p-8 text-center">
-        <p className="text-slate-400 text-lg">Không có sản phẩm</p>
+      <div className="bg-background rounded-lg card-shadow p-8 text-center">
+        <p className="text-muted-foreground text-lg">Không có sản phẩm</p>
       </div>
     );
   }
@@ -27,20 +27,20 @@ export default function ProductHeroCard({ item }: ProductHeroCardProps) {
   const packSize = product?.packSize;
 
   return (
-    <div className="bg-white rounded-2xl shadow-lg p-6 sm:p-8 text-center">
+    <div className="bg-background rounded-lg card-shadow p-6 sm:p-8 text-center">
       {/* Icon */}
       <div className="w-14 h-14 mx-auto mb-4 rounded-xl bg-primary/10 flex items-center justify-center">
         <Package className="w-7 h-7 text-primary" />
       </div>
 
       {/* Product Name - HERO */}
-      <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 leading-tight">
+      <h2 className="text-2xl sm:text-3xl font-bold text-foreground leading-tight">
         {product?.name ?? 'Sản phẩm không xác định'}
       </h2>
 
       {/* Brand - Model */}
       {(product?.brand || product?.model) && (
-        <p className="text-base text-slate-500 mt-1">
+        <p className="text-base text-muted-foreground mt-1">
           {[product?.brand, product?.model].filter(Boolean).join(' - ')}
         </p>
       )}
