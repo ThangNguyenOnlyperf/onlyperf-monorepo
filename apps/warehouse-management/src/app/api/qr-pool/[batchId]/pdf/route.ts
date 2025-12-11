@@ -33,7 +33,7 @@ export async function GET(
 
     // Fetch QR codes for this batch
     const qrCodes = await db
-      .select({ qrCode: qrPool.qrCode, id: qrPool.id })
+      .select({ qrCode: qrPool.qrCode, id: qrPool.id, generatedAt: qrPool.generatedAt })
       .from(qrPool)
       .where(
         and(
@@ -50,9 +50,12 @@ export async function GET(
       );
     }
 
+    // Get generatedAt from the first QR code
+    const generatedAt = qrCodes[0]?.generatedAt ?? new Date();
+
     // If no file param, return metadata about available files
     if (!fileParam) {
-      const files = getQRPoolPDFMeta(qrCodes.length, batchId);
+      const files = getQRPoolPDFMeta(qrCodes.length, batchId, generatedAt);
       return NextResponse.json({
         batchId,
         totalQRs: qrCodes.length,
@@ -75,7 +78,7 @@ export async function GET(
     }
 
     // Generate PDF for the specified file
-    const result = await generateQRPoolPDFFile(qrCodes, batchId, fileIndex);
+    const result = await generateQRPoolPDFFile(qrCodes, batchId, fileIndex, generatedAt);
 
     // Return PDF response
     return new NextResponse(new Uint8Array(result.pdfBuffer), {

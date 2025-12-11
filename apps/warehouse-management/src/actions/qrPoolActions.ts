@@ -317,8 +317,22 @@ export async function getQRPoolBatchPDFMetaAction(
       };
     }
 
+    // Get generatedAt from batch (query first QR code)
+    const [firstQR] = await db
+      .select({ generatedAt: qrPool.generatedAt })
+      .from(qrPool)
+      .where(
+        and(
+          eq(qrPool.organizationId, organizationId),
+          eq(qrPool.batchId, batchId)
+        )
+      )
+      .limit(1);
+
+    const generatedAt = firstQR?.generatedAt ?? new Date();
+
     // Get PDF file metadata
-    const files = getQRPoolPDFMeta(totalQRs, batchId);
+    const files = getQRPoolPDFMeta(totalQRs, batchId, generatedAt);
 
     return {
       success: true,

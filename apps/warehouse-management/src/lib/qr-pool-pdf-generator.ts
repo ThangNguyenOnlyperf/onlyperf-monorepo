@@ -45,19 +45,37 @@ function chunkArray<T>(array: T[], chunkSize: number): T[][] {
 }
 
 /**
- * Generate filename for a PDF file in a batch
+ * Format date as YYYY-MM-DD
  */
-function generateFilename(batchId: string, fileNumber: number, totalFiles: number): string {
+function formatDateForFilename(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Generate filename for a PDF file in a batch
+ * Format: {YYYY-MM-DD}-{shortId}.pdf
+ * For multi-part: {YYYY-MM-DD}-{shortId}-part-{number}.pdf
+ */
+function generateFilename(
+  batchId: string,
+  fileNumber: number,
+  totalFiles: number,
+  generatedAt: Date
+): string {
   // Use short batch ID for cleaner filenames
   const shortBatchId = batchId.length > 12 ? batchId.slice(-12) : batchId;
+  const dateStr = formatDateForFilename(generatedAt);
 
   if (totalFiles === 1) {
-    return `qr-pool-${shortBatchId}.pdf`;
+    return `${dateStr}-${shortBatchId}.pdf`;
   }
 
   // Pad file number for proper sorting (001, 002, etc.)
   const paddedNumber = String(fileNumber).padStart(String(totalFiles).length, "0");
-  return `qr-pool-${shortBatchId}-part-${paddedNumber}.pdf`;
+  return `${dateStr}-${shortBatchId}-part-${paddedNumber}.pdf`;
 }
 
 /**
@@ -78,6 +96,7 @@ function toQRCodeItems(qrCodes: QRPoolItem[]): QRCodeItem[] {
 export function getQRPoolPDFMeta(
   qrCount: number,
   batchId: string,
+  generatedAt: Date,
   batchSize: number = DEFAULT_BATCH_SIZE
 ): PDFFileMeta[] {
   const totalFiles = Math.ceil(qrCount / batchSize);
@@ -92,7 +111,7 @@ export function getQRPoolPDFMeta(
       fileNumber: i + 1,
       totalFiles,
       qrCount: fileQrCount,
-      filename: generateFilename(batchId, i + 1, totalFiles),
+      filename: generateFilename(batchId, i + 1, totalFiles, generatedAt),
       startIndex,
       endIndex,
     });
@@ -109,6 +128,7 @@ export async function generateQRPoolPDFFile(
   qrCodes: QRPoolItem[],
   batchId: string,
   fileIndex: number, // 1-indexed
+  generatedAt: Date,
   batchSize: number = DEFAULT_BATCH_SIZE
 ): Promise<BatchedPDFResult> {
   const totalFiles = Math.ceil(qrCodes.length / batchSize);
@@ -128,7 +148,7 @@ export async function generateQRPoolPDFFile(
     fileNumber: fileIndex,
     totalFiles,
     qrCount: chunk.length,
-    filename: generateFilename(batchId, fileIndex, totalFiles),
+    filename: generateFilename(batchId, fileIndex, totalFiles, generatedAt),
     startIndex,
     endIndex,
     pdfBuffer,
@@ -143,6 +163,7 @@ export async function generateQRPoolPDFFile(
 export async function generateAllQRPoolPDFs(
   qrCodes: QRPoolItem[],
   batchId: string,
+  generatedAt: Date,
   batchSize: number = DEFAULT_BATCH_SIZE
 ): Promise<BatchedPDFResult[]> {
   const chunks = chunkArray(qrCodes, batchSize);
@@ -158,7 +179,7 @@ export async function generateAllQRPoolPDFs(
       fileNumber: i + 1,
       totalFiles,
       qrCount: chunk.length,
-      filename: generateFilename(batchId, i + 1, totalFiles),
+      filename: generateFilename(batchId, i + 1, totalFiles, generatedAt),
       startIndex: i * batchSize,
       endIndex: i * batchSize + chunk.length,
       pdfBuffer,

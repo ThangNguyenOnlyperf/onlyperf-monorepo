@@ -28,7 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from '~/components/ui/table';
-import { QrCode, Plus, Loader2, Package, Check, Clock, Download, ChevronDown, FileDown } from 'lucide-react';
+import { QrCode, Plus, Loader2, Package, Check, Clock, Download, ChevronDown, FileDown, FileSpreadsheet } from 'lucide-react';
 import { toast } from 'sonner';
 import { StatCard } from '~/components/ui/StatCard';
 import { EmptyState } from '~/components/ui/EmptyState';
@@ -57,6 +57,7 @@ export default function QRPoolClientUI({ initialStats, initialBatches }: QRPoolC
   const [quantity, setQuantity] = useState('100');
   const [downloadingBatch, setDownloadingBatch] = useState<string | null>(null);
   const [downloadingFile, setDownloadingFile] = useState<number | null>(null);
+  const [downloadingCSV, setDownloadingCSV] = useState<string | null>(null);
 
   const downloadPDF = async (batchId: string, fileNumber: number) => {
     try {
@@ -96,26 +97,71 @@ export default function QRPoolClientUI({ initialStats, initialBatches }: QRPoolC
     }
   };
 
-  const getPDFFiles = (count: number, batchId: string): PDFFileMeta[] => {
+  const formatDateForFilename = (date: Date | string): string => {
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    const year = dateObj.getFullYear();
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const day = String(dateObj.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const getPDFFiles = (count: number, batchId: string, generatedAt: Date | string): PDFFileMeta[] => {
     const totalFiles = Math.ceil(count / PDF_BATCH_SIZE);
     const files: PDFFileMeta[] = [];
+    const shortBatchId = batchId.length > 12 ? batchId.slice(-12) : batchId;
+    const dateStr = formatDateForFilename(generatedAt);
 
     for (let i = 0; i < totalFiles; i++) {
       const startIndex = i * PDF_BATCH_SIZE;
       const endIndex = Math.min(startIndex + PDF_BATCH_SIZE, count);
       const fileQrCount = endIndex - startIndex;
-      const shortBatchId = batchId.length > 12 ? batchId.slice(-12) : batchId;
 
       files.push({
         fileNumber: i + 1,
         qrCount: fileQrCount,
         filename: totalFiles === 1
-          ? `qr-pool-${shortBatchId}.pdf`
-          : `qr-pool-${shortBatchId}-part-${String(i + 1).padStart(String(totalFiles).length, '0')}.pdf`,
+          ? `${dateStr}-${shortBatchId}.pdf`
+          : `${dateStr}-${shortBatchId}-part-${String(i + 1).padStart(String(totalFiles).length, '0')}.pdf`,
       });
     }
 
     return files;
+  };
+
+  const downloadCSV = async (batchId: string) => {
+    try {
+      setDownloadingCSV(batchId);
+
+      const response = await fetch(`/api/qr-pool/${batchId}/csv`);
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Không thể tải CSV');
+      }
+
+      // Get filename from Content-Disposition header
+      const contentDisposition = response.headers.get('Content-Disposition');
+      const filenameMatch = contentDisposition?.match(/filename="([^"]+)"/);
+      const filename = filenameMatch?.[1] ?? `qr-pool-${batchId}.csv`;
+
+      // Create blob and download
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast.success(`Đã tải ${filename}`);
+    } catch (error) {
+      console.error('Download CSV error:', error);
+      toast.error(error instanceof Error ? error.message : 'Không thể tải CSV');
+    } finally {
+      setDownloadingCSV(null);
+    }
   };
 
   const handleGenerate = async () => {
@@ -254,13 +300,14 @@ export default function QRPoolClientUI({ initialStats, initialBatches }: QRPoolC
                   <TableHead className="bg-muted/50 text-right">Tổng số</TableHead>
                   <TableHead className="bg-muted/50 text-right">Còn lại</TableHead>
                   <TableHead className="bg-muted/50">Trạng thái</TableHead>
-                  <TableHead className="bg-muted/50">Tải PDF</TableHead>
+                  <TableHead className="bg-muted/50">Tải xuống</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {batches.map((batch) => {
-                  const pdfFiles = getPDFFiles(batch.count, batch.batchId);
+                  const pdfFiles = getPDFFiles(batch.count, batch.batchId, batch.generatedAt);
                   const isDownloading = downloadingBatch === batch.batchId;
+                  const isDownloadingCSVBatch = downloadingCSV === batch.batchId;
                   const isSingleFile = pdfFiles.length === 1;
 
                   return (
@@ -291,61 +338,72 @@ export default function QRPoolClientUI({ initialStats, initialBatches }: QRPoolC
                         )}
                       </TableCell>
                       <TableCell>
-                        {isSingleFile ? (
+                        <div className="flex gap-2">
+                          {isSingleFile ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => downloadPDF(batch.batchId, 1)}
+                              disabled={isDownloading}
+                            >
+                              {isDownloading ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <>
+                                  <Download className="h-4 w-4 mr-1" />
+                                  PDF
+                                </>
+                              )}
+                            </Button>
+                          ) : (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={isDownloading}
+                                >
+                                  {isDownloading ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <>
+                                      <Download className="h-4 w-4 mr-1" />
+                                      PDF ({pdfFiles.length})
+                                      <ChevronDown className="h-4 w-4 ml-1" />
+                                    </>
+                                  )}
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="max-h-64 overflow-y-auto">
+                                {pdfFiles.map((file) => (
+                                  <DropdownMenuItem
+                                    key={file.fileNumber}
+                                    onClick={() => downloadPDF(batch.batchId, file.fileNumber)}
+                                    disabled={isDownloading && downloadingFile === file.fileNumber}
+                                  >
+                                    <FileDown className="h-4 w-4 mr-2" />
+                                    File {file.fileNumber} ({file.qrCount} mã)
+                                  </DropdownMenuItem>
+                                ))}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => downloadPDF(batch.batchId, 1)}
-                            disabled={isDownloading}
+                            onClick={() => downloadCSV(batch.batchId)}
+                            disabled={isDownloadingCSVBatch}
                           >
-                            {isDownloading ? (
-                              <>
-                                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                                Đang tải...
-                              </>
+                            {isDownloadingCSVBatch ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
                             ) : (
                               <>
-                                <Download className="h-4 w-4 mr-1" />
-                                Tải PDF
+                                <FileSpreadsheet className="h-4 w-4 mr-1" />
+                                CSV
                               </>
                             )}
                           </Button>
-                        ) : (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                disabled={isDownloading}
-                              >
-                                {isDownloading ? (
-                                  <>
-                                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                                    Đang tải...
-                                  </>
-                                ) : (
-                                  <>
-                                    <Download className="h-4 w-4 mr-1" />
-                                    {pdfFiles.length} files
-                                    <ChevronDown className="h-4 w-4 ml-1" />
-                                  </>
-                                )}
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="max-h-64 overflow-y-auto">
-                              {pdfFiles.map((file) => (
-                                <DropdownMenuItem
-                                  key={file.fileNumber}
-                                  onClick={() => downloadPDF(batch.batchId, file.fileNumber)}
-                                  disabled={isDownloading && downloadingFile === file.fileNumber}
-                                >
-                                  <FileDown className="h-4 w-4 mr-2" />
-                                  File {file.fileNumber} ({file.qrCount} mã)
-                                </DropdownMenuItem>
-                              ))}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   );
