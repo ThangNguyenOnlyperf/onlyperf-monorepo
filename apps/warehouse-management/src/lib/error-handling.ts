@@ -55,3 +55,24 @@ export function getDbErrorMessage(error: unknown, defaultMessage: string): strin
   // Default: don't expose raw message
   return defaultMessage;
 }
+
+/**
+ * Get user-friendly error message for server actions
+ * Preserves permission/auth errors, falls back to DB error handling
+ */
+export function getActionErrorMessage(error: unknown, defaultMessage: string): string {
+  if (!(error instanceof Error)) return defaultMessage;
+
+  // Preserve permission/auth errors as-is (they're already user-friendly)
+  if (
+    error.message.includes('Không có quyền') ||
+    error.message.includes('Chưa đăng nhập') ||
+    error.message.includes('Chưa chọn tổ chức') ||
+    error.message.includes('không còn là thành viên')
+  ) {
+    return error.message;
+  }
+
+  // Fall back to DB error handling
+  return getDbErrorMessage(error, defaultMessage);
+}

@@ -7,7 +7,7 @@ import { eq, desc, sql, and } from 'drizzle-orm';
 import type { ActionResult, QRPoolStatus } from './types';
 import type { PaginationParams, PaginatedResult } from '~/lib/queries/paginateQuery';
 import { requireOrgContext } from '~/lib/authorization';
-import { getDbErrorMessage } from '~/lib/error-handling';
+import { getActionErrorMessage } from '~/lib/error-handling';
 import { getQRPoolPDFMeta, type PDFFileMeta } from '~/lib/qr-pool-pdf-generator';
 
 // Types for QR Pool
@@ -97,7 +97,7 @@ export async function generateQRPoolBatchAction(
     console.error('generateQRPoolBatchAction error:', error);
     return {
       success: false,
-      message: getDbErrorMessage(error, 'Không thể tạo mã QR'),
+      message: getActionErrorMessage(error, 'Không thể tạo mã QR'),
     };
   }
 }
@@ -142,7 +142,7 @@ export async function getQRPoolStatsAction(): Promise<ActionResult<QRPoolStats>>
     console.error('getQRPoolStatsAction error:', error);
     return {
       success: false,
-      message: getDbErrorMessage(error, 'Không thể lấy thống kê QR Pool'),
+      message: getActionErrorMessage(error, 'Không thể lấy thống kê QR Pool'),
     };
   }
 }
@@ -207,7 +207,7 @@ export async function getQRPoolListAction(
     console.error('getQRPoolListAction error:', error);
     return {
       success: false,
-      message: getDbErrorMessage(error, 'Không thể lấy danh sách QR'),
+      message: getActionErrorMessage(error, 'Không thể lấy danh sách QR'),
     };
   }
 }
@@ -250,7 +250,7 @@ export async function getQRBatchesAction(): Promise<ActionResult<QRBatch[]>> {
     console.error('getQRBatchesAction error:', error);
     return {
       success: false,
-      message: getDbErrorMessage(error, 'Không thể lấy lịch sử batch'),
+      message: getActionErrorMessage(error, 'Không thể lấy lịch sử batch'),
     };
   }
 }
@@ -284,7 +284,7 @@ export async function getQRPoolItemAction(
     console.error('getQRPoolItemAction error:', error);
     return {
       success: false,
-      message: getDbErrorMessage(error, 'Không thể tìm mã QR'),
+      message: getActionErrorMessage(error, 'Không thể tìm mã QR'),
     };
   }
 }
@@ -349,7 +349,7 @@ export async function getQRPoolBatchPDFMetaAction(
     console.error('getQRPoolBatchPDFMetaAction error:', error);
     return {
       success: false,
-      message: getDbErrorMessage(error, 'Không thể lấy thông tin PDF'),
+      message: getActionErrorMessage(error, 'Không thể lấy thông tin PDF'),
     };
   }
 }

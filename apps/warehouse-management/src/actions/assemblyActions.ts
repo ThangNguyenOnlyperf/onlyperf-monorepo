@@ -5,7 +5,7 @@ import { bundles, bundleItems, products, qrPool, inventory } from '~/server/db/s
 import { eq, and, asc } from 'drizzle-orm';
 import type { ActionResult, ProductRelationWithPackSize } from './types';
 import { requireOrgContext } from '~/lib/authorization';
-import { getDbErrorMessage } from '~/lib/error-handling';
+import { getActionErrorMessage } from '~/lib/error-handling';
 
 // Types for Assembly
 export interface AssemblyBundle {
@@ -146,7 +146,7 @@ export async function startAssemblySessionAction(
     console.error('startAssemblySessionAction error:', error);
     return {
       success: false,
-      message: getDbErrorMessage(error, 'Không thể bắt đầu phiên lắp ráp'),
+      message: getActionErrorMessage(error, 'Không thể bắt đầu phiên lắp ráp'),
     };
   }
 }
@@ -298,7 +298,7 @@ export async function scanAssemblyQRAction(
     console.error('scanAssemblyQRAction error:', error);
     return {
       success: false,
-      message: getDbErrorMessage(error, 'Không thể quét mã QR'),
+      message: getActionErrorMessage(error, 'Không thể quét mã QR'),
     };
   }
 }
@@ -372,7 +372,7 @@ export async function confirmPhaseTransitionAction(
     console.error('confirmPhaseTransitionAction error:', error);
     return {
       success: false,
-      message: getDbErrorMessage(error, 'Không thể chuyển pha'),
+      message: getActionErrorMessage(error, 'Không thể chuyển pha'),
     };
   }
 }
@@ -440,7 +440,7 @@ export async function completeAssemblyAction(
     console.error('completeAssemblyAction error:', error);
     return {
       success: false,
-      message: getDbErrorMessage(error, 'Không thể hoàn thành lắp ráp'),
+      message: getActionErrorMessage(error, 'Không thể hoàn thành lắp ráp'),
     };
   }
 }
@@ -516,7 +516,7 @@ export async function getAssemblySessionAction(
     console.error('getAssemblySessionAction error:', error);
     return {
       success: false,
-      message: getDbErrorMessage(error, 'Không thể lấy trạng thái phiên lắp ráp'),
+      message: getActionErrorMessage(error, 'Không thể lấy trạng thái phiên lắp ráp'),
     };
   }
 }

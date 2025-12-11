@@ -1,7 +1,15 @@
+import { redirect } from 'next/navigation';
 import { getProductsForBundleAction } from '~/actions/bundleActions';
 import CreateBundleClientUI from '~/components/bundles/CreateBundleClientUI';
+import { getOrgContext, hasPermission, P } from '~/lib/authorization';
 
 export default async function CreateBundlePage() {
+  // Check permission - redirect if unauthorized
+  const context = await getOrgContext();
+  if (!context || !hasPermission(context.userRole, P.CREATE_BUNDLES)) {
+    redirect('/bundles');
+  }
+
   const result = await getProductsForBundleAction();
 
   const products = result.success ? result.data : [];

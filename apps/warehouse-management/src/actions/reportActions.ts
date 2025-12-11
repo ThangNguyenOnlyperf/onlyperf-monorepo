@@ -15,7 +15,7 @@ import {
 import { eq, and, or, ilike, sql, desc, asc, inArray } from 'drizzle-orm';
 import { logger } from '~/lib/logger';
 import { requireOrgContext } from '~/lib/authorization';
-import { getDbErrorMessage } from '~/lib/error-handling';
+import { getActionErrorMessage } from '~/lib/error-handling';
 
 interface ActionResult<T = unknown> {
   success: boolean;
@@ -327,7 +327,7 @@ export async function getProductTrackingReport(
     logger.error({ error }, 'Error fetching product tracking report:');
     return {
       success: false,
-      message: getDbErrorMessage(error, 'Không thể lấy báo cáo theo dõi sản phẩm'),
+      message: getActionErrorMessage(error, 'Không thể lấy báo cáo theo dõi sản phẩm'),
     };
   }
 }
@@ -369,7 +369,7 @@ export async function exportProductTrackingReport(
     logger.error({ error }, 'Error exporting product tracking report:');
     return {
       success: false,
-      message: getDbErrorMessage(error, 'Không thể xuất báo cáo theo dõi sản phẩm'),
+      message: getActionErrorMessage(error, 'Không thể xuất báo cáo theo dõi sản phẩm'),
     };
   }
 }

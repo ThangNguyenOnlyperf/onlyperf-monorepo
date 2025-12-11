@@ -13,7 +13,7 @@ import { createShopifyProductFromWarehouse } from '~/lib/shopify/products';
 import { revalidatePath } from 'next/cache';
 import { isPackableType } from '~/lib/constants/product-types';
 import { requireOrgContext } from '~/lib/authorization';
-import { getDbErrorMessage } from '~/lib/error-handling';
+import { getActionErrorMessage } from '~/lib/error-handling';
 
 // Helper: Find or create a pack product from a base product
 // Uses insert-first pattern to avoid race conditions (relies on unique constraint)
@@ -308,7 +308,7 @@ export async function createShipmentAction(
     logger.error({ error, receiptNumber: data.receiptNumber }, 'Failed to create shipment');
     return {
       success: false,
-      error: getDbErrorMessage(error, 'Không thể tạo phiếu nhập. Vui lòng thử lại sau.'),
+      error: getActionErrorMessage(error, 'Không thể tạo phiếu nhập. Vui lòng thử lại sau.'),
     };
   }
 }

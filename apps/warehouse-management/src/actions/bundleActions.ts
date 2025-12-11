@@ -7,7 +7,7 @@ import { eq, desc, sql, and, inArray } from 'drizzle-orm';
 import type { ActionResult, BundleStatus, ProductRelation, UserRelation } from './types';
 import type { PaginationParams, PaginatedResult } from '~/lib/queries/paginateQuery';
 import { requireOrgContext } from '~/lib/authorization';
-import { getDbErrorMessage } from '~/lib/error-handling';
+import { getActionErrorMessage } from '~/lib/error-handling';
 
 // Types for Bundles
 export type Bundle = typeof bundles.$inferSelect;
@@ -152,7 +152,7 @@ export async function createBundleAction(data: {
     console.error('createBundleAction error:', error);
     return {
       success: false,
-      message: getDbErrorMessage(error, 'Không thể tạo lô hàng'),
+      message: getActionErrorMessage(error, 'Không thể tạo lô hàng'),
     };
   }
 }
@@ -268,7 +268,7 @@ export async function getBundlesAction(
     console.error('getBundlesAction error:', error);
     return {
       success: false,
-      message: getDbErrorMessage(error, 'Không thể lấy danh sách lô hàng'),
+      message: getActionErrorMessage(error, 'Không thể lấy danh sách lô hàng'),
     };
   }
 }
@@ -370,7 +370,7 @@ export async function getBundleDetailAction(
     console.error('getBundleDetailAction error:', error);
     return {
       success: false,
-      message: getDbErrorMessage(error, 'Không thể lấy chi tiết lô hàng'),
+      message: getActionErrorMessage(error, 'Không thể lấy chi tiết lô hàng'),
     };
   }
 }
@@ -425,7 +425,7 @@ export async function deleteBundleAction(
     console.error('deleteBundleAction error:', error);
     return {
       success: false,
-      message: getDbErrorMessage(error, 'Không thể xóa lô hàng'),
+      message: getActionErrorMessage(error, 'Không thể xóa lô hàng'),
     };
   }
 }
@@ -465,7 +465,7 @@ export async function getProductsForBundleAction(): Promise<ActionResult<{
     console.error('getProductsForBundleAction error:', error);
     return {
       success: false,
-      message: getDbErrorMessage(error, 'Không thể lấy danh sách sản phẩm'),
+      message: getActionErrorMessage(error, 'Không thể lấy danh sách sản phẩm'),
     };
   }
 }

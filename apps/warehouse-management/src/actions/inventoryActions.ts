@@ -14,7 +14,7 @@ import type {
 } from './types';
 import type { PaginationParams, PaginatedResult } from '~/lib/queries/paginateQuery';
 import { requireOrgContext } from '~/lib/authorization';
-import { getDbErrorMessage } from '~/lib/error-handling';
+import { getActionErrorMessage } from '~/lib/error-handling';
 
 /**
  * Get inventory statistics
@@ -71,7 +71,7 @@ export async function getInventoryStatsAction(): Promise<ActionResult<InventoryS
     console.error('getInventoryStatsAction error:', error);
     return {
       success: false,
-      message: getDbErrorMessage(error, 'Không thể lấy thống kê tồn kho'),
+      message: getActionErrorMessage(error, 'Không thể lấy thống kê tồn kho'),
     };
   }
 }
@@ -207,7 +207,7 @@ export async function getInventoryAction(
     console.error('getInventoryAction error:', error);
     return {
       success: false,
-      message: getDbErrorMessage(error, 'Không thể lấy danh sách tồn kho'),
+      message: getActionErrorMessage(error, 'Không thể lấy danh sách tồn kho'),
     };
   }
 }
@@ -294,7 +294,7 @@ export async function getInventoryItemAction(
     console.error('getInventoryItemAction error:', error);
     return {
       success: false,
-      message: getDbErrorMessage(error, 'Không thể tìm sản phẩm'),
+      message: getActionErrorMessage(error, 'Không thể tìm sản phẩm'),
     };
   }
 }
@@ -358,7 +358,7 @@ export async function updateInventoryStatusAction(
     console.error('updateInventoryStatusAction error:', error);
     return {
       success: false,
-      message: getDbErrorMessage(error, 'Không thể cập nhật trạng thái'),
+      message: getActionErrorMessage(error, 'Không thể cập nhật trạng thái'),
     };
   }
 }
@@ -420,7 +420,7 @@ export async function createInventoryItemAction(data: {
     console.error('createInventoryItemAction error:', error);
     return {
       success: false,
-      message: getDbErrorMessage(error, 'Không thể tạo sản phẩm'),
+      message: getActionErrorMessage(error, 'Không thể tạo sản phẩm'),
     };
   }
 }

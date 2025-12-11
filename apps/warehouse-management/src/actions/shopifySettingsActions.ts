@@ -9,7 +9,7 @@ import { encryptSecret, maskSecret, isEncrypted } from "~/lib/crypto";
 import { createOrgShopifyClient, getOrgShopifyConfig } from "~/lib/shopify/org-client";
 import { logger } from "~/lib/logger";
 import type { ActionResult } from "./types";
-import { getDbErrorMessage, serializeError } from "~/lib/error-handling";
+import { getActionErrorMessage, serializeError } from "~/lib/error-handling";
 
 /**
  * Shopify settings form schema
@@ -96,7 +96,7 @@ export async function getShopifySettingsAction(): Promise<ActionResult<ShopifySe
     logger.error({ error: serializeError(error) }, "Error fetching Shopify settings");
     return {
       success: false,
-      message: getDbErrorMessage(error, "Không thể lấy cài đặt Shopify."),
+      message: getActionErrorMessage(error, "Không thể lấy cài đặt Shopify."),
     };
   }
 }
@@ -184,7 +184,7 @@ export async function updateShopifySettingsAction(
 
     return {
       success: false,
-      message: getDbErrorMessage(error, "Không thể cập nhật cài đặt Shopify."),
+      message: getActionErrorMessage(error, "Không thể cập nhật cài đặt Shopify."),
     };
   }
 }
@@ -284,7 +284,7 @@ export async function clearShopifySettingsAction(): Promise<ActionResult<void>> 
     logger.error({ error: serializeError(error) }, "Error clearing Shopify settings");
     return {
       success: false,
-      message: getDbErrorMessage(error, "Không thể xóa cấu hình Shopify."),
+      message: getActionErrorMessage(error, "Không thể xóa cấu hình Shopify."),
     };
   }
 }

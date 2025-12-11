@@ -7,7 +7,7 @@ import { eq, desc, and } from 'drizzle-orm';
 import type { ActionResult } from './types';
 import { logger } from '~/lib/logger';
 import { requireOrgContext } from '~/lib/authorization';
-import { getDbErrorMessage } from '~/lib/error-handling';
+import { getActionErrorMessage } from '~/lib/error-handling';
 
 // Enhanced payment interfaces for static approach
 export interface CreateOrderRequest {
@@ -112,7 +112,7 @@ export async function createOrderWithPayment(request: CreateOrderRequest): Promi
     logger.error({ error }, 'Error creating order');
     return {
       success: false,
-      message: getDbErrorMessage(error, 'Không thể tạo đơn hàng.'),
+      message: getActionErrorMessage(error, 'Không thể tạo đơn hàng.'),
     };
   }
 }
@@ -272,7 +272,7 @@ export async function processSepayWebhookEnhanced(data: SepayWebhookDataEnhanced
     logger.error({ error }, 'Error processing Sepay webhook');
     return {
       success: false,
-      message: getDbErrorMessage(error, 'Không thể xử lý thanh toán.'),
+      message: getActionErrorMessage(error, 'Không thể xử lý thanh toán.'),
     };
   }
 }
@@ -322,7 +322,7 @@ export async function getOrderForPayment(orderId: string): Promise<ActionResult>
   } catch (error) {
     return {
       success: false,
-      message: getDbErrorMessage(error, 'Không thể lấy thông tin đơn hàng.'),
+      message: getActionErrorMessage(error, 'Không thể lấy thông tin đơn hàng.'),
     };
   }
 }

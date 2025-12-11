@@ -7,7 +7,7 @@ import { eq, and } from 'drizzle-orm';
 import { auth } from '~/lib/auth';
 import type { ActionResult } from './types';
 import { logger } from '~/lib/logger';
-import { getDbErrorMessage } from '~/lib/error-handling';
+import { getActionErrorMessage } from '~/lib/error-handling';
 
 export interface UserOrganization {
   id: string;
@@ -68,7 +68,7 @@ export async function getUserOrganizationsAction(): Promise<ActionResult<UserOrg
     logger.error({ error }, 'Error fetching user organizations');
     return {
       success: false,
-      message: getDbErrorMessage(error, 'Không thể lấy danh sách tổ chức.'),
+      message: getActionErrorMessage(error, 'Không thể lấy danh sách tổ chức.'),
     };
   }
 }
@@ -128,7 +128,7 @@ export async function switchOrganizationAction(organizationId: string): Promise<
     logger.error({ error }, 'Error switching organization');
     return {
       success: false,
-      message: getDbErrorMessage(error, 'Không thể chuyển tổ chức.'),
+      message: getActionErrorMessage(error, 'Không thể chuyển tổ chức.'),
     };
   }
 }

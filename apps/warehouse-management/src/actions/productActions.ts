@@ -18,7 +18,7 @@ import { createShopifyProductFromWarehouse } from '~/lib/shopify/products';
 import type { ShopifyProductSyncResult } from '~/lib/shopify/types';
 import { logger, getUserContext } from '~/lib/logger';
 import { requireOrgContext } from '~/lib/authorization';
-import { getDbErrorMessage } from '~/lib/error-handling';
+import { getActionErrorMessage } from '~/lib/error-handling';
 
 export async function getProductsWithStockAction(
   paginationParams?: PaginationParams
@@ -316,7 +316,7 @@ export async function getProductsForSelectionAction(): Promise<ActionResult<Prod
     logger.error({ error }, 'Error fetching products for selection:');
     return {
       success: false,
-      message: getDbErrorMessage(error, 'Không thể lấy danh sách sản phẩm'),
+      message: getActionErrorMessage(error, 'Không thể lấy danh sách sản phẩm'),
     };
   }
 }
@@ -379,7 +379,7 @@ export async function searchProductsAction(query: string): Promise<ActionResult<
     logger.error({ error }, 'Error searching products:');
     return {
       success: false,
-      message: getDbErrorMessage(error, 'Không thể tìm kiếm sản phẩm'),
+      message: getActionErrorMessage(error, 'Không thể tìm kiếm sản phẩm'),
     };
   }
 }
@@ -418,7 +418,7 @@ export async function getProductMetricsAction(): Promise<ActionResult<ProductMet
     logger.error({ error }, 'Error fetching product metrics:');
     return {
       success: false,
-      message: getDbErrorMessage(error, 'Lỗi khi lấy thống kê sản phẩm'),
+      message: getActionErrorMessage(error, 'Lỗi khi lấy thống kê sản phẩm'),
     };
   }
 }
