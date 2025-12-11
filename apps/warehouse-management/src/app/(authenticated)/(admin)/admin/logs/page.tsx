@@ -1,20 +1,15 @@
-import { auth } from '~/lib/auth';
 import { redirect } from 'next/navigation';
-import { cookies } from 'next/headers';
 import { getLogFiles } from '~/actions/logActions';
 import LogViewerClientUI from '~/components/logs/LogViewerClientUI';
+import { requireOrgContext } from '~/lib/authorization';
 
 async function getData() {
-  const hdrs = new Headers();
-  const cs = await cookies();
-  const cookieStr = cs
-    .getAll()
-    .map((c: { name: string; value: string }) => `${c.name}=${c.value}`)
-    .join('; ');
-  if (cookieStr) hdrs.set('cookie', cookieStr);
-  const session = await auth.api.getSession({ headers: hdrs });
-  if (!session?.user) redirect('/signin');
-  if (session.user.role !== 'admin') redirect('/dashboard');
+  try {
+    const { userRole } = await requireOrgContext();
+    if (userRole !== 'admin') redirect('/dashboard');
+  } catch {
+    redirect('/signin');
+  }
 
   const logFilesResult = await getLogFiles();
   return {

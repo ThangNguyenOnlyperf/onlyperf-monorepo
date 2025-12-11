@@ -13,8 +13,8 @@ export const PERMISSIONS = {
     // Full system access
     "*",
   ],
-  user: [
-    // Default warehouse staff permissions
+  supervisor: [
+    // Supervisor: view + scan + create/update
     "view:products",
     "create:products",
     "update:products",
@@ -31,6 +31,17 @@ export const PERMISSIONS = {
     "view:storages",
     "view:inventory",
     "create:outbound",
+    "view:outbound",
+  ],
+  user: [
+    // Staff: view + scan only (no create/update)
+    "view:products",
+    "scan:qr",
+    "view:shipments",
+    "view:orders",
+    "view:customers",
+    "view:storages",
+    "view:inventory",
     "view:outbound",
   ],
   accountant: [
@@ -159,6 +170,7 @@ export async function requireAdmin() {
 const ORG_ROLE_TO_APP_ROLE: Record<string, Role> = {
   owner: "admin",
   admin: "admin",
+  supervisor: "supervisor",
   member: "user",
 };
 

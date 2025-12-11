@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 // Role enum for type safety
-export const UserRole = z.enum(['admin', 'user']);
+export const UserRole = z.enum(['admin', 'supervisor', 'user']);
 export type UserRoleType = z.infer<typeof UserRole>;
 
 // Create user schema

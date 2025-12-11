@@ -42,7 +42,11 @@ export default function DashboardPage() {
                 <p><strong>Tên:</strong> {session?.user.name}</p>
                 <p><strong>Email:</strong> {session?.user.email}</p>
                 <p><strong>Email đã xác minh:</strong> {session?.user.emailVerified ? 'Có' : 'Chưa'}</p>
-                <p><strong>Vai trò:</strong> {session?.user.role === "admin" ? "Quản trị viên" : "Người dùng"}</p>
+                <p><strong>Vai trò:</strong> {
+                  session?.user.role === "admin" ? "Quản trị viên" :
+                  session?.user.role === "supervisor" ? "Giám sát viên" :
+                  "Nhân viên"
+                }</p>
               </div>
             </CardContent>
           </Card>

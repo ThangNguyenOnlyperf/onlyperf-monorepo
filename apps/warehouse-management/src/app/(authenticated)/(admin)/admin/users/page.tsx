@@ -1,23 +1,21 @@
-import { auth } from "~/lib/auth";
 import { db } from "~/server/db";
 import { user } from "~/server/db/schema";
 import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import CreateUserForm from "~/components/admin/CreateUserForm";
 import UserRoleToggle from "~/components/admin/UserRoleToggle";
 import ChangePasswordModal from "~/components/admin/ChangePasswordModal";
 import DeleteUserButton from "~/components/admin/DeleteUserButton";
 import { desc } from "drizzle-orm";
+import { requireOrgContext } from "~/lib/authorization";
 
 async function getData() {
-  const hdrs = new Headers();
-  const cs = await cookies();
-  const cookieStr = cs.getAll().map((c: { name: string; value: string }) => `${c.name}=${c.value}`).join("; ");
-  if (cookieStr) hdrs.set("cookie", cookieStr);
-  const session = await auth.api.getSession({ headers: hdrs });
-  if (!session?.user) redirect("/signin");
-  if (session.user.role !== "admin") redirect("/dashboard");
+  try {
+    const { userRole } = await requireOrgContext();
+    if (userRole !== "admin") redirect("/dashboard");
+  } catch {
+    redirect("/signin");
+  }
   const users = await db.select().from(user).orderBy(desc(user.createdAt));
   return { users };
 }

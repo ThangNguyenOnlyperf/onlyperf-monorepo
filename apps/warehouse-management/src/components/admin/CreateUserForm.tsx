@@ -59,6 +59,7 @@ export default function CreateUserForm() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="user">Nhân viên</SelectItem>
+            <SelectItem value="supervisor">Giám sát viên</SelectItem>
             <SelectItem value="admin">Quản trị</SelectItem>
           </SelectContent>
         </Select>

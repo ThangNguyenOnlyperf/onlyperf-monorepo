@@ -6,5 +6,5 @@ export interface User {
     image?: string | null;
     createdAt: Date;
     updatedAt: Date;
-    role: "user" | "admin";
+    role: "user" | "admin" | "supervisor";
 }

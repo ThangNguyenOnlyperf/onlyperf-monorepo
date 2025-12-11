@@ -1,12 +1,11 @@
 'use server';
 
-import { auth } from '~/lib/auth';
-import { headers } from 'next/headers';
 import { readdir, readFile, stat } from 'fs/promises';
 import { createReadStream } from 'fs';
 import { createGunzip } from 'zlib';
 import { join, resolve } from 'path';
 import { pipeline } from 'stream/promises';
+import { requireOrgContext } from '~/lib/authorization';
 
 const LOGS_DIR = resolve(process.cwd(), 'logs');
 
@@ -50,15 +49,13 @@ const LEVEL_NAME_MAP: Record<number, string> = {
 };
 
 async function checkAdminAuth() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+  const context = await requireOrgContext();
 
-  if (!session?.user || session.user.role !== 'admin') {
+  if (context.userRole !== 'admin') {
     throw new Error('Unauthorized: Admin access required');
   }
 
-  return session;
+  return context;
 }
 
 export async function getLogFiles(): Promise<{

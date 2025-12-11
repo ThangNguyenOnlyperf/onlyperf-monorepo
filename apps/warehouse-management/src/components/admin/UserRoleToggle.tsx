@@ -1,16 +1,21 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
-import { Button } from "~/components/ui/button";
+import { useActionState, useEffect, useState } from "react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "~/components/ui/select";
 import { updateUserRoleActionState } from "~/actions/userActions";
 import type { ActionResult } from "~/actions/types";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { Shield, ShieldOff } from "lucide-react";
-import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/ui/tooltip";
+
+const ROLE_LABELS: Record<string, string> = {
+  user: "Nhân viên",
+  supervisor: "Giám sát viên",
+  admin: "Quản trị",
+};
 
 export default function UserRoleToggle({ userId, currentRole }: { userId: string; currentRole: string }) {
   const router = useRouter();
+  const [role, setRole] = useState(currentRole);
   const [state, formAction, pending] = useActionState<ActionResult, FormData>(
     updateUserRoleActionState as any,
     { success: false }
@@ -24,30 +29,34 @@ export default function UserRoleToggle({ userId, currentRole }: { userId: string
     } else if (state.error) {
       toast.error(state.error || "Không thể cập nhật vai trò");
     }
-  }, [state]);
+  }, [state, router]);
 
-  const nextRole = currentRole === "admin" ? "user" : "admin";
-  const label = currentRole === "admin" ? "Chuyển thành Nhân viên" : "Chuyển thành Quản trị";
+  // Sync with prop when it changes (e.g., after refresh)
+  useEffect(() => {
+    setRole(currentRole);
+  }, [currentRole]);
+
+  const handleRoleChange = (newRole: string) => {
+    if (newRole === role) return;
+    setRole(newRole);
+
+    // Submit form programmatically
+    const formData = new FormData();
+    formData.append("userId", userId);
+    formData.append("role", newRole);
+    formAction(formData);
+  };
 
   return (
-    <form action={formAction} className="inline-block">
-      <input type="hidden" name="userId" value={userId} />
-      <input type="hidden" name="role" value={nextRole} />
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            type="submit"
-            variant="outline"
-            size="icon"
-            disabled={pending}
-            aria-label={label}
-            title={label}
-          >
-            {currentRole === "admin" ? <ShieldOff /> : <Shield />}
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>{label}</TooltipContent>
-      </Tooltip>
-    </form>
+    <Select value={role} onValueChange={handleRoleChange} disabled={pending}>
+      <SelectTrigger className="h-8 w-[130px] text-xs">
+        <SelectValue placeholder="Chọn vai trò" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="user">{ROLE_LABELS.user}</SelectItem>
+        <SelectItem value="supervisor">{ROLE_LABELS.supervisor}</SelectItem>
+        <SelectItem value="admin">{ROLE_LABELS.admin}</SelectItem>
+      </SelectContent>
+    </Select>
   );
 }
