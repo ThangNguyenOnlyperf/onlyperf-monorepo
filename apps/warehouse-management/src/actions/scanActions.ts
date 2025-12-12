@@ -7,6 +7,7 @@ import type { ActionResult } from './types';
 import { queueInventorySync } from '~/lib/shopify/inventory';
 import { logger } from '~/lib/logger';
 import { requireOrgContext } from '~/lib/authorization';
+import { extractProductCode } from '~/lib/product-code';
 
 export interface ScannedItem {
   id: string;
@@ -31,13 +32,7 @@ export async function scanItemAction(
   try {
     const { organizationId, userId, userName } = await requireOrgContext({ permissions: ['update:shipment-items'] });
 
-    let productCode = qrCode;
-    // Handle URL format: https://onlyperf.com/p/ABCD1234
-    if (qrCode.includes('/p/')) {
-      const parts = qrCode.split('/p/');
-      productCode = parts[parts.length - 1] ?? qrCode;
-    }
-
+    const productCode = extractProductCode(qrCode);
     const isShortCode = /^[A-Z]{4}\d{4}$/.test(productCode);
 
     if (!isShortCode) {

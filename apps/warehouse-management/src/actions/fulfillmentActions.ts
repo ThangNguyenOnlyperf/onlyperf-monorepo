@@ -6,6 +6,7 @@ import { eq, and, isNull, inArray, sql } from "drizzle-orm";
 import type { ActionResult } from "./types";
 import { logger } from "~/lib/logger";
 import { requireOrgContext } from "~/lib/authorization";
+import { extractProductCode } from "~/lib/product-code";
 
 // ============================================================================
 // TYPES
@@ -363,12 +364,7 @@ export async function scanAndFulfillItemAction(
   try {
     const { organizationId } = await requireOrgContext();
 
-    // Extract product code from QR if it's a URL
-    let productCode = qrCode;
-    if (qrCode.includes("/p/")) {
-      const parts = qrCode.split("/p/");
-      productCode = parts[parts.length - 1] ?? qrCode;
-    }
+    const productCode = extractProductCode(qrCode);
 
     // Find the shipment item by QR code (must be in same org)
     const scannedItem = await db

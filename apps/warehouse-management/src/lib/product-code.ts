@@ -89,3 +89,17 @@ export function formatShortCode(code: string): string {
 export function parseShortCode(formattedCode: string): string {
   return formattedCode.replace(/-/g, '');
 }
+
+/**
+ * Extract product code from QR code input
+ * Handles both URL format (https://onlyperf.com/p/ABCD1234) and raw code (ABCD1234)
+ * @param qrCodeOrUrl The scanned QR code (URL or raw code)
+ * @returns The extracted product code
+ */
+export function extractProductCode(qrCodeOrUrl: string): string {
+  if (qrCodeOrUrl.includes('/p/')) {
+    const parts = qrCodeOrUrl.split('/p/');
+    return parts[parts.length - 1] ?? qrCodeOrUrl;
+  }
+  return qrCodeOrUrl;
+}

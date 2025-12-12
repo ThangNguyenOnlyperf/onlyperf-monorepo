@@ -83,14 +83,13 @@ export default function BundleDetailClientUI({ bundle }: BundleDetailClientUIPro
           {bundle.status === 'pending' && (
             <>
               <Link href={`/bundles/${bundle.id}/assembly`}>
-                <Button className="bg-gradient-to-r from-primary to-primary/80">
+                <Button className="btn-primary">
                   <Play className="h-4 w-4 mr-2" />
                   Bắt đầu lắp ráp
                 </Button>
               </Link>
               <Button
-                variant="outline"
-                className="text-destructive hover:text-destructive"
+                variant="destructive"
                 onClick={() => setShowDeleteDialog(true)}
               >
                 <Trash2 className="h-4 w-4 mr-2" />
@@ -100,7 +99,7 @@ export default function BundleDetailClientUI({ bundle }: BundleDetailClientUIPro
           )}
           {bundle.status === 'assembling' && (
             <Link href={`/bundles/${bundle.id}/assembly`}>
-              <Button className="bg-gradient-to-r from-blue-500 to-blue-600">
+              <Button className="btn-primary">
                 <Play className="h-4 w-4 mr-2" />
                 Tiếp tục lắp ráp
               </Button>
@@ -111,7 +110,7 @@ export default function BundleDetailClientUI({ bundle }: BundleDetailClientUIPro
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Overall Progress */}
-        <Card className="lg:col-span-2">
+        <Card className="lg:col-span-2 card-shadow">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Package className="h-5 w-5" />
@@ -148,7 +147,7 @@ export default function BundleDetailClientUI({ bundle }: BundleDetailClientUIPro
                   return (
                     <TableRow
                       key={item.id}
-                      className={`hover:bg-primary/5 ${isCurrentPhase ? 'bg-blue-50' : ''}`}
+                      className={`hover:bg-primary/5 ${isCurrentPhase ? 'bg-primary/10' : ''}`}
                     >
                       <TableCell>
                         <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
@@ -193,7 +192,7 @@ export default function BundleDetailClientUI({ bundle }: BundleDetailClientUIPro
         </Card>
 
         {/* Bundle Info */}
-        <Card>
+        <Card className="card-shadow">
           <CardHeader>
             <CardTitle>Thông tin lô hàng</CardTitle>
           </CardHeader>

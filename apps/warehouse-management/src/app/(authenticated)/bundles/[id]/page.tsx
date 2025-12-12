@@ -15,7 +15,7 @@ export default async function BundleDetailPage({ params }: BundleDetailPageProps
   }
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className="container mx-auto py-6 px-4 space-y-6">
       <BundleDetailClientUI bundle={result.data} />
     </div>
   );

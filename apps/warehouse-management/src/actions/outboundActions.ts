@@ -10,6 +10,7 @@ import { generateOrderExcel } from '~/lib/excel-export/orderExport';
 import { queueInventorySync } from '~/lib/shopify/inventory';
 import { logger } from '~/lib/logger';
 import { requireOrgContext } from '~/lib/authorization';
+import { extractProductCode } from '~/lib/product-code';
 
 export async function updateProductPrice(productId: string, price: number): Promise<ActionResult> {
   try {
@@ -81,11 +82,7 @@ export async function validateAndFetchItem(qrCode: string): Promise<ActionResult
     const { organizationId } = await requireOrgContext();
     logger.info({ qrCode, organizationId }, 'Bắt đầu xác thực sản phẩm qua mã QR');
 
-    let productCode = qrCode;
-    if (qrCode.includes('/p/')) {
-      const parts = qrCode.split('/p/');
-      productCode = parts[parts.length - 1] ?? qrCode;
-    }
+    const productCode = extractProductCode(qrCode);
 
     const item = await db
       .select({

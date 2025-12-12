@@ -15,7 +15,7 @@ export default async function CreateBundlePage() {
   const products = result.success ? result.data : [];
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className="container mx-auto py-6 px-4 space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Tạo lô hàng mới</h1>
         <p className="text-muted-foreground">

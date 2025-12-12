@@ -6,6 +6,8 @@ import { eq, and, asc } from 'drizzle-orm';
 import type { ActionResult, ProductRelationWithPackSize } from './types';
 import { requireOrgContext } from '~/lib/authorization';
 import { getActionErrorMessage } from '~/lib/error-handling';
+import { emitAssemblyUpdate } from '~/lib/sse-emitter';
+import { extractProductCode } from '~/lib/product-code';
 
 // Types for Assembly
 export interface AssemblyBundle {
@@ -152,6 +154,67 @@ export async function startAssemblySessionAction(
 }
 
 /**
+ * Internal helper to get session for real-time broadcasting
+ * Does not require auth (called after auth is already verified)
+ */
+async function getSessionForBroadcast(
+  bundleId: string,
+  organizationId: string
+): Promise<AssemblySession | null> {
+  try {
+    const [bundle] = await db
+      .select()
+      .from(bundles)
+      .where(
+        and(
+          eq(bundles.organizationId, organizationId),
+          eq(bundles.id, bundleId)
+        )
+      )
+      .limit(1);
+
+    if (!bundle) return null;
+
+    const items = await db
+      .select({
+        id: bundleItems.id,
+        productId: bundleItems.productId,
+        expectedCount: bundleItems.expectedCount,
+        scannedCount: bundleItems.scannedCount,
+        phaseOrder: bundleItems.phaseOrder,
+        product: {
+          id: products.id,
+          name: products.name,
+          brand: products.brand,
+          model: products.model,
+          packSize: products.packSize,
+        },
+      })
+      .from(bundleItems)
+      .leftJoin(products, eq(bundleItems.productId, products.id))
+      .where(eq(bundleItems.bundleId, bundle.id))
+      .orderBy(asc(bundleItems.phaseOrder));
+
+    const currentItem = items[bundle.currentPhaseIndex] ?? null;
+
+    return {
+      bundle: {
+        id: bundle.id,
+        name: bundle.name,
+        qrCode: bundle.qrCode,
+        status: bundle.status,
+        currentPhaseIndex: bundle.currentPhaseIndex,
+        assemblyStartedAt: bundle.assemblyStartedAt,
+      },
+      items: items as AssemblyBundleItem[],
+      currentItem,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Scan a pack QR code during assembly
  */
 export async function scanAssemblyQRAction(
@@ -161,7 +224,8 @@ export async function scanAssemblyQRAction(
   try {
     const { organizationId, userId } = await requireOrgContext();
 
-    // Get bundle
+    const productCode = extractProductCode(packQRCode);
+
     const [bundle] = await db
       .select()
       .from(bundles)
@@ -194,7 +258,7 @@ export async function scanAssemblyQRAction(
       .where(
         and(
           eq(qrPool.organizationId, organizationId),
-          eq(qrPool.qrCode, packQRCode)
+          eq(qrPool.qrCode, productCode)
         )
       )
       .limit(1);
@@ -259,7 +323,7 @@ export async function scanAssemblyQRAction(
       // Create inventory item
       await tx.insert(inventory).values({
         organizationId,
-        qrCode: packQRCode,
+        qrCode: productCode,
         productId: currentItem.productId,
         status: 'in_stock',
         sourceType: 'assembly',
@@ -281,6 +345,12 @@ export async function scanAssemblyQRAction(
 
     // Check if all phases are complete
     const isAllComplete = isPhaseComplete && bundle.currentPhaseIndex >= items.length - 1;
+
+    // Emit real-time update for connected clients
+    const sessionForBroadcast = await getSessionForBroadcast(bundleId, organizationId);
+    if (sessionForBroadcast) {
+      emitAssemblyUpdate(bundleId, 'scan_success', sessionForBroadcast);
+    }
 
     return {
       success: true,
@@ -360,6 +430,12 @@ export async function confirmPhaseTransitionAction(
       })
       .where(eq(bundles.id, bundleId));
 
+    // Emit real-time update for connected clients
+    const sessionForBroadcast = await getSessionForBroadcast(bundleId, organizationId);
+    if (sessionForBroadcast) {
+      emitAssemblyUpdate(bundleId, 'phase_transition', sessionForBroadcast);
+    }
+
     return {
       success: true,
       message: 'Đã chuyển sang pha tiếp theo',
@@ -431,6 +507,12 @@ export async function completeAssemblyAction(
         assemblyCompletedAt: new Date(),
       })
       .where(eq(bundles.id, bundleId));
+
+    // Emit real-time update for connected clients
+    const sessionForBroadcast = await getSessionForBroadcast(bundleId, organizationId);
+    if (sessionForBroadcast) {
+      emitAssemblyUpdate(bundleId, 'assembly_complete', sessionForBroadcast);
+    }
 
     return {
       success: true,
