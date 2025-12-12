@@ -4,8 +4,7 @@ import { qrPool } from "~/server/db/schema";
 import { eq, and } from "drizzle-orm";
 import { auth } from "~/lib/auth";
 import { headers } from "next/headers";
-
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://onlyperf.com";
+import { getQRBaseURL } from "~/lib/qr-domain";
 
 /**
  * Format date as YYYY-MM-DD
@@ -66,10 +65,13 @@ export async function GET(
     const shortBatchId = batchId.length > 12 ? batchId.slice(-12) : batchId;
     const filename = `${dateStr}-${shortBatchId}.csv`;
 
+    // Get organization's QR base URL
+    const baseUrl = await getQRBaseURL(organizationId);
+
     // Generate CSV content
-    const csvHeader = "qr_code,url\n";
+    const csvHeader = "url\n";
     const csvRows = qrCodes
-      .map((qr) => `${qr.qrCode},${BASE_URL}/p/${qr.qrCode}`)
+      .map((qr) => `${baseUrl}/${qr.qrCode}`)
       .join("\n");
     const csvContent = csvHeader + csvRows;
 

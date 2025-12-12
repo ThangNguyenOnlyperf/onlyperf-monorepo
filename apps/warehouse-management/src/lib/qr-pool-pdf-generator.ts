@@ -3,9 +3,9 @@ import {
   type QRCodeItem,
 } from "./pdf-template-overlay";
 import { DEFAULT_BATCH_SIZE } from "./qr-pool-constants";
+import { getDefaultQRBaseURL } from "./qr-domain";
 
 export { DEFAULT_BATCH_SIZE };
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL ?? "https://onlyperf.com";
 
 /**
  * Metadata for a single PDF file in a batched generation
@@ -82,11 +82,11 @@ function generateFilename(
 /**
  * Convert QR pool items to QRCodeItem format for PDF generation
  */
-function toQRCodeItems(qrCodes: QRPoolItem[]): QRCodeItem[] {
+function toQRCodeItems(qrCodes: QRPoolItem[], baseUrl: string): QRCodeItem[] {
   return qrCodes.map((item, index) => ({
     id: item.id ?? `qr-${index}`,
     qrCode: item.qrCode,
-    url: `${BASE_URL}/p/${item.qrCode}`,
+    url: `${baseUrl}/${item.qrCode}`,
   }));
 }
 
@@ -130,7 +130,8 @@ export async function generateQRPoolPDFFile(
   batchId: string,
   fileIndex: number, // 1-indexed
   generatedAt: Date,
-  batchSize: number = DEFAULT_BATCH_SIZE
+  batchSize: number = DEFAULT_BATCH_SIZE,
+  baseUrl?: string
 ): Promise<BatchedPDFResult> {
   const totalFiles = Math.ceil(qrCodes.length / batchSize);
 
@@ -142,7 +143,8 @@ export async function generateQRPoolPDFFile(
   const endIndex = Math.min(startIndex + batchSize, qrCodes.length);
   const chunk = qrCodes.slice(startIndex, endIndex);
 
-  const qrCodeItems = toQRCodeItems(chunk);
+  const qrBaseUrl = baseUrl ?? getDefaultQRBaseURL();
+  const qrCodeItems = toQRCodeItems(chunk, qrBaseUrl);
   const pdfBuffer = await generateTemplatePDFWithQRCodes(qrCodeItems);
 
   return {
@@ -165,15 +167,17 @@ export async function generateAllQRPoolPDFs(
   qrCodes: QRPoolItem[],
   batchId: string,
   generatedAt: Date,
-  batchSize: number = DEFAULT_BATCH_SIZE
+  batchSize: number = DEFAULT_BATCH_SIZE,
+  baseUrl?: string
 ): Promise<BatchedPDFResult[]> {
   const chunks = chunkArray(qrCodes, batchSize);
   const totalFiles = chunks.length;
   const results: BatchedPDFResult[] = [];
+  const qrBaseUrl = baseUrl ?? getDefaultQRBaseURL();
 
   for (let i = 0; i < chunks.length; i++) {
     const chunk = chunks[i]!;
-    const qrCodeItems = toQRCodeItems(chunk);
+    const qrCodeItems = toQRCodeItems(chunk, qrBaseUrl);
     const pdfBuffer = await generateTemplatePDFWithQRCodes(qrCodeItems);
 
     results.push({

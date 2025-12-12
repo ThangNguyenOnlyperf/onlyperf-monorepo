@@ -1,37 +1,50 @@
 /**
  * Product short code generator for compact QR codes
- * Format: ABCD1234 (4 letters + 4 digits)
+ * Format: 10-character NanoID (e.g., X7KM9PQ2NR)
  *
- * Character set: A-Z excluding O and I (24 letters) + 0-9 (10 digits)
- * Total combinations: 24^4 × 10^4 = 331,776,000 unique codes
+ * Character set: 23456789ABCDEFGHJKLMNPQRSTUVWXYZ (32 chars)
+ * - No 0/O (zero vs letter O confusion)
+ * - No 1/I/l (one vs letter I vs lowercase L confusion)
+ * - Uppercase only for readability on printed stamps
+ *
+ * Total combinations: 32^10 = 1,125,899,906,842,624 (1.1 quadrillion)
+ * Cryptographically secure random generation via NanoID
  */
 
-// Alphabet excluding ambiguous characters O and I
-const LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ'; // 24 letters
-const DIGITS = '0123456789'; // 10 digits
+import { customAlphabet } from 'nanoid';
+
+// Safe alphabet: no 0, O, 1, I, l (ambiguous characters)
+const SAFE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+const CODE_LENGTH = 10;
+
+// NanoID generator with cryptographically secure randomness
+const nanoid = customAlphabet(SAFE_ALPHABET, CODE_LENGTH);
 
 /**
- * Generate a random short code in format ABCD1234
- * @returns 8-character code (4 letters + 4 digits)
+ * Generate a cryptographically secure short code
+ * @returns 10-character code (e.g., X7KM9PQ2NR)
  */
 export function generateShortCode(): string {
-  const letters = Array.from({ length: 4 }, () =>
-    LETTERS[Math.floor(Math.random() * LETTERS.length)]
-  ).join('');
-
-  const digits = Array.from({ length: 4 }, () =>
-    DIGITS[Math.floor(Math.random() * DIGITS.length)]
-  ).join('');
-
-  return `${letters}${digits}`;
+  return nanoid();
 }
 
 /**
- * Validate if a string matches the short code format
+ * Validate if a string matches the new NanoID format (10 chars)
  * @param code The code to validate
- * @returns True if valid format
+ * @returns True if valid v2 format
  */
-export function isValidShortCode(code: string): boolean {
+function isValidNanoCode(code: string): boolean {
+  if (code.length !== CODE_LENGTH) return false;
+  // Check all characters are in safe alphabet
+  return /^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]+$/.test(code);
+}
+
+/**
+ * Validate if a string matches the legacy format (8 chars: ABCD1234)
+ * @param code The code to validate
+ * @returns True if valid legacy format
+ */
+function isValidLegacyCode(code: string): boolean {
   if (code.length !== 8) return false;
 
   const letterPart = code.slice(0, 4);
@@ -45,6 +58,16 @@ export function isValidShortCode(code: string): boolean {
   if (!/^\d{4}$/.test(digitPart)) return false;
 
   return true;
+}
+
+/**
+ * Validate if a string matches any supported code format
+ * Supports both new NanoID (10 chars) and legacy (8 chars ABCD1234)
+ * @param code The code to validate
+ * @returns True if valid format
+ */
+export function isValidShortCode(code: string): boolean {
+  return isValidNanoCode(code) || isValidLegacyCode(code);
 }
 
 /**
@@ -74,11 +97,18 @@ export function generateUniqueShortCode(
 /**
  * Format a short code for display (adds dash for readability)
  * @param code The short code
- * @returns Formatted code (e.g., ABCD-1234)
+ * @returns Formatted code (e.g., X7KM9-PQ2NR for 10-char, ABCD-1234 for 8-char)
  */
 export function formatShortCode(code: string): string {
-  if (code.length !== 8) return code;
-  return `${code.slice(0, 4)}-${code.slice(4, 8)}`;
+  if (code.length === 10) {
+    // New format: split in middle
+    return `${code.slice(0, 5)}-${code.slice(5)}`;
+  }
+  if (code.length === 8) {
+    // Legacy format: split at letter/digit boundary
+    return `${code.slice(0, 4)}-${code.slice(4, 8)}`;
+  }
+  return code;
 }
 
 /**

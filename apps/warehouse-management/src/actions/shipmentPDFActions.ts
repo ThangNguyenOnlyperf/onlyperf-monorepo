@@ -13,6 +13,7 @@ import {
 import type { ActionResult } from './types';
 import { logger } from '~/lib/logger';
 import { requireOrgContext } from '~/lib/authorization';
+import { getQRBaseURL } from '~/lib/qr-domain';
 
 /**
  * Result type for PDF generation
@@ -101,12 +102,16 @@ export async function generateShipmentTemplatePDFAction(
       };
     }
 
+    // Get organization's QR base URL
+    const baseUrl = await getQRBaseURL(organizationId);
+
     // Convert to QRCodeItem format
     const qrItems = convertToQRCodeItems(
       itemsWithQR.map((item) => ({
         id: item.id,
         qrCode: item.qrCode!,
-      }))
+      })),
+      baseUrl
     );
 
     // Generate PDF
@@ -201,12 +206,16 @@ export async function generateShipmentTemplatePDFBufferAction(
       return null;
     }
 
+    // Get organization's QR base URL
+    const baseUrl = await getQRBaseURL(organizationId);
+
     // Convert to QRCodeItem format
     const qrItems = convertToQRCodeItems(
       itemsWithQR.map((item) => ({
         id: item.id,
         qrCode: item.qrCode!,
-      }))
+      })),
+      baseUrl
     );
 
     // Generate PDF buffer

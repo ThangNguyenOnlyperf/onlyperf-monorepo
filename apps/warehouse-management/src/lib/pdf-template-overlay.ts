@@ -268,16 +268,20 @@ export async function generateTemplatePDFBase64(
 
 /**
  * Utility: Convert shipment items to QRCodeItem format
+ * @param items - Array of items with id and qrCode
+ * @param baseUrl - Full base URL including path (e.g., "https://btsport.com/p")
+ *                  If not provided, defaults to env or "https://onlyperf.com/p"
  */
 export function convertToQRCodeItems(
   items: Array<{ id: string; qrCode: string }>,
   baseUrl?: string
 ): QRCodeItem[] {
-  const url = baseUrl ?? process.env.NEXT_PUBLIC_BASE_URL ?? "https://onlyperf.com";
+  // Default to env + /p if no baseUrl provided (backwards compatible)
+  const url = baseUrl ?? `${process.env.NEXT_PUBLIC_BASE_URL ?? "https://onlyperf.com"}/p`;
 
   return items.map((item) => ({
     id: item.id,
     qrCode: item.qrCode,
-    url: `${url}/p/${item.qrCode}`,
+    url: `${url}/${item.qrCode}`,
   }));
 }

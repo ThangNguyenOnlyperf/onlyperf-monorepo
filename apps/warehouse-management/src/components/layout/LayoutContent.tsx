@@ -15,8 +15,8 @@ export default function LayoutContent({ children }: LayoutContentProps) {
   const pathname = usePathname();
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   
-  // Hide sidebar on auth pages
-  const isAuthPage = pathname === '/signin' || pathname === '/signup';
+  // Hide sidebar on auth pages (signin, signup, setup)
+  const isAuthPage = pathname === '/signin' || pathname === '/signup' || pathname === '/setup';
   
   if (isAuthPage) {
     return (

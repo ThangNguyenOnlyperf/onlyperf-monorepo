@@ -106,6 +106,9 @@ export const organizationSettings = pgTable("organization_settings", {
   shopifyWebhookSecret: text("shopify_webhook_secret"),
   // Other org-specific settings
   defaultWarrantyMonths: integer("default_warranty_months").notNull().default(12),
+  // QR Code Domain Configuration
+  qrCodeDomain: text("qr_code_domain"),  // e.g., "https://btsport.com"
+  qrCodePath: text("qr_code_path").default("/p"),  // e.g., "/p"
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 }, (table) => ({

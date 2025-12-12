@@ -10,6 +10,7 @@ import { clearTemplateCache } from "~/lib/badge-generator";
 import { auth } from "~/lib/auth";
 import { headers } from "next/headers";
 import { logger, getUserContext } from "~/lib/logger";
+import { getQRBaseURL } from "~/lib/qr-domain";
 
 export async function GET(
   request: NextRequest,
@@ -23,6 +24,14 @@ export async function GET(
 
     if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const organizationId = session.session.activeOrganizationId;
+    if (!organizationId) {
+      return NextResponse.json(
+        { error: "No active organization" },
+        { status: 403 }
+      );
     }
 
     const userContext = getUserContext(session);
@@ -98,12 +107,16 @@ export async function GET(
       productName = product.name ? `-${product.name.replace(/[^a-zA-Z0-9]/g, "_")}` : "";
     }
 
+    // Get organization's QR base URL
+    const baseUrl = await getQRBaseURL(organizationId);
+
     // Convert to QRCodeItem format
     const qrItems = convertToQRCodeItems(
       itemsWithQR.map((item) => ({
         id: item.id,
         qrCode: item.qrCode,
-      }))
+      })),
+      baseUrl
     );
 
     // Generate PDF using fixed pdf-lib approach (vector quality)

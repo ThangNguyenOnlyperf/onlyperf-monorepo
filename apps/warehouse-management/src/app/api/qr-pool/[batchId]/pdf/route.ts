@@ -5,6 +5,7 @@ import { eq, and } from "drizzle-orm";
 import { generateQRPoolPDFFile, getQRPoolPDFMeta } from "~/lib/qr-pool-pdf-generator";
 import { auth } from "~/lib/auth";
 import { headers } from "next/headers";
+import { getQRBaseURL } from "~/lib/qr-domain";
 
 export async function GET(
   request: NextRequest,
@@ -77,8 +78,11 @@ export async function GET(
       );
     }
 
+    // Get organization's QR base URL
+    const baseUrl = await getQRBaseURL(organizationId);
+
     // Generate PDF for the specified file
-    const result = await generateQRPoolPDFFile(qrCodes, batchId, fileIndex, generatedAt);
+    const result = await generateQRPoolPDFFile(qrCodes, batchId, fileIndex, generatedAt, undefined, baseUrl);
 
     // Return PDF response
     return new NextResponse(new Uint8Array(result.pdfBuffer), {
