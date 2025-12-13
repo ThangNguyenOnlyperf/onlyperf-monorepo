@@ -158,7 +158,7 @@ export default function SignUpForm() {
                     <FormControl>
                       <Input
                         type="email"
-                        placeholder="m@example.com"
+                        placeholder="youraccount@company.com.com"
                         disabled={isLoading}
                         {...field}
                       />

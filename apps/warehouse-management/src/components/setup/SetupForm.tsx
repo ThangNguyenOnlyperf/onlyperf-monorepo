@@ -127,7 +127,7 @@ export default function SetupForm({
                     <FormControl>
                       <Input
                         type="email"
-                        placeholder="m@example.com"
+                        placeholder="youraccount@company.com.com"
                         disabled={isPending}
                         {...field}
                       />
